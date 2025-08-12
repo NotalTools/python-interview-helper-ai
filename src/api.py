@@ -200,6 +200,9 @@ async def submit_text_answer(
         return {"answer_id": answer.id, **evaluation}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        # пропускаем 4xx из валидации/лимитера
+        raise
     except Exception as e:
         logger.error(f"Ошибка при обработке текстового ответа: {e}")
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
