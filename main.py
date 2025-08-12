@@ -37,10 +37,9 @@ async def run_bot():
         await database.create_tables()
         logger.info("База данных подключена (bot mode)")
 
-        # run_polling блокирующий → запускаем в отдельном потоке
+        # run_polling блокирующий → запускаем напрямую в пуле исполнителей
         logger.info("Запуск Telegram бота (polling)...")
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, bot.run)
+        await asyncio.to_thread(bot.run)
     except KeyboardInterrupt:
         logger.info("Бот остановлен пользователем")
     except Exception as e:
