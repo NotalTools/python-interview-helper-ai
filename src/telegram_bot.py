@@ -432,7 +432,8 @@ class InterviewBot:
     def run(self):
         """Запуск бота (PTB v20: run_polling синхронный)"""
         logger.info("Запуск Telegram бота...")
-        self.application.run_polling()
+        # run_polling синхронный, сам управляет своим event loop (PTB v20)
+        self.application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 # Создание экземпляра бота

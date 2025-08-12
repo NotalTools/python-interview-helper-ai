@@ -29,17 +29,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def run_bot():
-    """Запуск только Telegram бота (polling) + инициализация БД"""
+def run_bot_sync():
+    """Синхронный запуск бота: инициализируем БД и запускаем polling в главном потоке."""
     try:
-        # Подключаем БД, как это делается в lifespan FastAPI
-        await database.connect()
-        await database.create_tables()
+        asyncio.run(database.connect())
+        asyncio.run(database.create_tables())
         logger.info("База данных подключена (bot mode)")
-
-        # run_polling блокирующий → запускаем напрямую в пуле исполнителей
         logger.info("Запуск Telegram бота (polling)...")
-        await asyncio.to_thread(bot.run)
+        bot.run()  # блокирующий вызов PTB v20
     except KeyboardInterrupt:
         logger.info("Бот остановлен пользователем")
     except Exception as e:
@@ -47,7 +44,7 @@ async def run_bot():
         raise
     finally:
         try:
-            await database.disconnect()
+            asyncio.run(database.disconnect())
             logger.info("База данных отключена (bot mode)")
         except Exception:
             pass
@@ -107,7 +104,7 @@ def main():
     
     try:
         if args.mode == "bot":
-            asyncio.run(run_bot())
+            run_bot_sync()
         elif args.mode == "api":
             asyncio.run(run_api())
         else:  # both
