@@ -23,6 +23,7 @@ RUN uv sync --frozen --no-dev
 
 # Copy source
 COPY src ./src
+COPY main.py ./
 COPY README.md ./
 COPY questions.example.yaml ./
 
