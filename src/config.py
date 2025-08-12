@@ -71,6 +71,18 @@ class AppConstants:
         "multiple_choice": "Multiple Choice"
     }
 
+    # Мультиагентные пайплайны для интервью по категориям
+    # Имя агента → конкретный класс определяется в интервью-оркестраторе
+    INTERVIEW_CATEGORY_PIPELINES: Dict[str, list[str]] = {
+        # MVP: включаем только для system_design
+        "system_design": [
+            "architect",
+            "storage",
+            "reliability",
+            "tradeoffs",
+        ]
+    }
+
 
 # Создаем экземпляр настроек
 settings = Settings() 

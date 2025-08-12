@@ -8,6 +8,7 @@ import aiofiles
 import aiohttp
 
 from .config import settings
+from .interview_service import InterviewService
 from .database import database
 from .models import User, Question, Answer, UserStats, AnswerEvaluation
 
@@ -17,8 +18,9 @@ logger = logging.getLogger(__name__)
 class AIService:
     """Базовый класс для AI сервисов"""
     
-    async def evaluate_answer(self, question: Question, user_answer: str, 
-                            answer_type: str = "text") -> AnswerEvaluation:
+    async def evaluate_answer(self, question: Question, user_answer: str,
+                              answer_type: str = "text",
+                              multi_agent_notes: Optional[str] = None) -> AnswerEvaluation:
         """Оценка ответа пользователя"""
         raise NotImplementedError
     
@@ -33,10 +35,12 @@ class OpenAIService(AIService):
     def __init__(self):
         self.client = AsyncOpenAI(api_key=settings.openai_api_key)
     
-    async def evaluate_answer(self, question: Question, user_answer: str, 
-                            answer_type: str = "text") -> AnswerEvaluation:
+    async def evaluate_answer(self, question: Question, user_answer: str,
+                            answer_type: str = "text",
+                            multi_agent_notes: Optional[str] = None) -> AnswerEvaluation:
         """Оценка ответа пользователя с помощью OpenAI"""
         
+        experts_section = f"\n\nМнения экспертов по теме (конспект):\n{multi_agent_notes}" if multi_agent_notes else ""
         system_prompt = f"""
         Ты эксперт по техническим собеседованиям. Оцени ответ кандидата на вопрос.
         
@@ -47,6 +51,7 @@ class OpenAIService(AIService):
         Уровень сложности: {question.level}
         Категория: {question.category}
         Максимальный балл: {question.points}
+        {experts_section}
         
         Ответ кандидата: {user_answer}
         Тип ответа: {answer_type}
@@ -145,10 +150,12 @@ class GigaChatService(AIService):
             logger.error(f"Ошибка при получении токена GigaChat: {e}")
             raise
     
-    async def evaluate_answer(self, question: Question, user_answer: str, 
-                            answer_type: str = "text") -> AnswerEvaluation:
+    async def evaluate_answer(self, question: Question, user_answer: str,
+                            answer_type: str = "text",
+                            multi_agent_notes: Optional[str] = None) -> AnswerEvaluation:
         """Оценка ответа пользователя с помощью GigaChat"""
         
+        experts_section = f"\n\nМнения экспертов по теме (конспект):\n{multi_agent_notes}" if multi_agent_notes else ""
         system_prompt = f"""
         Ты эксперт по техническим собеседованиям. Оцени ответ кандидата на вопрос.
         
@@ -159,6 +166,7 @@ class GigaChatService(AIService):
         Уровень сложности: {question.level}
         Категория: {question.category}
         Максимальный балл: {question.points}
+        {experts_section}
         
         Ответ кандидата: {user_answer}
         Тип ответа: {answer_type}
@@ -331,8 +339,20 @@ class AnswerService:
             answer_type="text"
         )
         
-        # Оцениваем ответ
-        evaluation = await self.ai_service.evaluate_answer(question, answer_text)
+        # Мультиагентные заметки для выбранных категорий (MVP: system_design)
+        expert_notes = await InterviewService.prepare_expert_notes(
+            category=question.category,
+            user_id=user.telegram_id,
+            level=user.level or "",
+            topic=question.title
+        )
+
+        # Оцениваем ответ с учетом expert notes (если есть)
+        evaluation = await self.ai_service.evaluate_answer(
+            question,
+            answer_text,
+            multi_agent_notes=expert_notes or None,
+        )
         evaluation.answer_id = answer.id
         
         # Обновляем оценку в базе
@@ -375,8 +395,21 @@ class AnswerService:
             voice_file_id=voice_file_id
         )
         
-        # Оцениваем ответ
-        evaluation = await self.ai_service.evaluate_answer(question, answer_text, "voice")
+        # Мультиагентные заметки
+        expert_notes = await InterviewService.prepare_expert_notes(
+            category=question.category,
+            user_id=user.telegram_id,
+            level=user.level or "",
+            topic=question.title
+        )
+
+        # Оцениваем ответ с учетом expert notes (если есть)
+        evaluation = await self.ai_service.evaluate_answer(
+            question,
+            answer_text,
+            "voice",
+            multi_agent_notes=expert_notes or None,
+        )
         evaluation.answer_id = answer.id
         
         # Обновляем оценку в базе
