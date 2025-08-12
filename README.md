@@ -293,3 +293,15 @@ MIT License
 ```json
 { "user_id": 123, "level": "junior", "topic": "Работа с API в Python" }
 ``` 
+
+## 🔧 Dev команды
+
+```bash
+make run-api     # запустить API
+make run-bot     # запустить Telegram бота
+make seed        # импорт примеров вопросов
+make test        # запустить тесты
+make test-cov    # тесты с покрытием
+make lint        # ruff
+make mypy        # mypy
+``` 
