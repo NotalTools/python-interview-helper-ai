@@ -15,6 +15,7 @@ from .services import (
     UserService, QuestionService, AnswerService, 
     VoiceService, OpenAIService
 )
+from .container import get_interview_app_service
 from .routers.python_tutor import router as python_tutor_router
 
 # Настройка логирования
@@ -169,10 +170,9 @@ async def submit_text_answer(
 ):
     """Отправка текстового ответа"""
     try:
-        answer_service = AnswerService()
-        answer, evaluation = await answer_service.process_text_answer(
-            user_id, question_id, answer_text
-        )
+        # Через application layer (DDD) — использует порты/адаптеры
+        app_service = get_interview_app_service()
+        answer, evaluation = await app_service.answer_text(user_id, question_id, answer_text)
         return evaluation
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
