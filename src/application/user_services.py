@@ -46,6 +46,15 @@ class QuestionAppService:
     async def create(self, question: Question) -> Question:
         return await self.questions.create(question)
 
+    async def search(self, level: str | None, category: str | None, q: str | None, limit: int = 20, offset: int = 0):
+        return await self.questions.search(level=level, category=category, q=q, limit=limit, offset=offset)
+
+    async def update(self, question_id: int, data: dict) -> Question | None:
+        return await self.questions.update(question_id, data)
+
+    async def delete(self, question_id: int) -> bool:
+        return await self.questions.delete(question_id)
+
 
 class AnswerAppService:
     def __init__(self, users: UserRepository, questions: QuestionRepository, answers: AnswerRepository, ai: AIProvider, voice: VoiceStorage, orch: Orchestrator) -> None:

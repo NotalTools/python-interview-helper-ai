@@ -41,6 +41,42 @@ class SqlAlchemyQuestionRepository(QuestionRepository):
             await session.refresh(dto)
             return dto
 
+    async def search(self, level: Optional[str] = None, category: Optional[str] = None, q: Optional[str] = None, limit: int = 20, offset: int = 0) -> List[Question]:
+        # Простой MVP SQL
+        conditions = ["1=1"]
+        params: Dict[str, Any] = {}
+        if level:
+            conditions.append("level = :level")
+            params["level"] = level
+        if category:
+            conditions.append("category = :category")
+            params["category"] = category
+        if q:
+            conditions.append("(title LIKE :q OR content LIKE :q)")
+            params["q"] = f"%{q}%"
+        where = " AND ".join(conditions)
+        sql = f"SELECT * FROM questions WHERE {where} ORDER BY id DESC LIMIT :limit OFFSET :offset"
+        params.update({"limit": limit, "offset": offset})
+        async with database.get_session() as session:
+            result = await session.execute(sql, params)
+            return result.fetchall()  # ORM rows map to model via session config
+
+    async def update(self, question_id: int, data: Dict[str, Any]) -> Optional[Question]:
+        if not data:
+            return await self.get_by_id(question_id)
+        sets = ", ".join([f"{k} = :{k}" for k in data])
+        sql = f"UPDATE questions SET {sets} WHERE id = :id"
+        async with database.get_session() as session:
+            await session.execute(sql, {**data, "id": question_id})
+            await session.commit()
+            return await self.get_by_id(question_id)
+
+    async def delete(self, question_id: int) -> bool:
+        async with database.get_session() as session:
+            result = await session.execute("DELETE FROM questions WHERE id = :id", {"id": question_id})
+            await session.commit()
+            return True
+
 
 class SqlAlchemyAnswerRepository(AnswerRepository):
     async def create(self, user_id: int, question_id: int, answer_text: str, answer_type: str, voice_file_id: Optional[str] = None) -> Answer:

@@ -186,7 +186,7 @@ async def admin_update_question(question_id: int, question_data: QuestionCreate,
     )
     entity.validate()
     qs = get_question_app_service()
-    updated = await qs.create(entity)  # в MVP перезапишем запись
+    updated = await qs.update(question_id, question_data.model_dump(exclude_unset=True))
     return updated
 
 
@@ -195,10 +195,18 @@ async def admin_delete_question(question_id: int, x_admin_token: str | None = He
     if not settings.admin_token or x_admin_token != settings.admin_token:
         raise HTTPException(status_code=401, detail="unauthorized")
     # Для MVP: удаление напрямую через сессию ORM
-    async with database.get_session() as session:
-        await session.execute(f"DELETE FROM questions WHERE id = :id", {"id": question_id})
-        await session.commit()
-    return {"status": "deleted", "id": question_id}
+    qs = get_question_app_service()
+    ok = await qs.delete(question_id)
+    return {"status": "deleted" if ok else "not_found", "id": question_id}
+
+
+@app.get("/admin/questions", response_model=list[Question])
+async def admin_search_questions(level: str | None = None, category: str | None = None, q: str | None = None, limit: int = 20, offset: int = 0, x_admin_token: str | None = Header(default=None)):
+    if not settings.admin_token or x_admin_token != settings.admin_token:
+        raise HTTPException(status_code=401, detail="unauthorized")
+    qs = get_question_app_service()
+    res = await qs.search(level, category, q, limit, offset)
+    return res
 
 
 # Эндпоинты для ответов

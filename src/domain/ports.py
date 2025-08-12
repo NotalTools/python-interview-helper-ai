@@ -29,6 +29,22 @@ class QuestionRepository(Protocol):
     async def create(self, question: Question) -> Question:
         ...
 
+    async def search(
+        self,
+        level: Optional[str] = None,
+        category: Optional[str] = None,
+        q: Optional[str] = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> List[Question]:
+        ...
+
+    async def update(self, question_id: int, data: Dict[str, Any]) -> Optional[Question]:
+        ...
+
+    async def delete(self, question_id: int) -> bool:
+        ...
+
 
 class AnswerRepository(Protocol):
     async def create(self, user_id: int, question_id: int, answer_text: str, answer_type: str, voice_file_id: Optional[str] = None) -> Answer:
