@@ -15,6 +15,7 @@ from .services import (
     UserService, QuestionService, AnswerService, 
     VoiceService, OpenAIService
 )
+from fastapi import Depends
 from .container import get_interview_app_service
 from .routers.python_tutor import router as python_tutor_router
 from .container import (
@@ -69,17 +70,15 @@ app.include_router(python_tutor_router)
 
 # Эндпоинты для пользователей
 @app.get("/users/{telegram_id}", response_model=User)
-async def get_user(telegram_id: int):
+async def get_user(telegram_id: int, users=Depends(get_user_app_service)):
     """Получение пользователя по Telegram ID"""
-    users = get_user_app_service()
     user = await users.get_or_create(telegram_id, None, None, None)
     return user
 
 
 @app.post("/users/", response_model=User)
-async def create_user(user_data: UserCreate):
+async def create_user(user_data: UserCreate, users=Depends(get_user_app_service)):
     """Создание нового пользователя"""
-    users = get_user_app_service()
     user = await users.get_or_create(
         user_data.telegram_id,
         user_data.username,
@@ -90,9 +89,8 @@ async def create_user(user_data: UserCreate):
 
 
 @app.put("/users/{telegram_id}", response_model=User)
-async def update_user(telegram_id: int, user_data: UserUpdate):
+async def update_user(telegram_id: int, user_data: UserUpdate, users=Depends(get_user_app_service)):
     """Обновление пользователя"""
-    users = get_user_app_service()
     update_data = user_data.dict(exclude_unset=True)
     updated_user = await users.get_or_create(telegram_id, None, None, None)
     if "level" in update_data:
@@ -103,9 +101,8 @@ async def update_user(telegram_id: int, user_data: UserUpdate):
 
 
 @app.get("/users/{telegram_id}/stats", response_model=UserStats)
-async def get_user_stats(telegram_id: int):
+async def get_user_stats(telegram_id: int, users=Depends(get_user_app_service)):
     """Получение статистики пользователя"""
-    users = get_user_app_service()
     stats = await users.stats(telegram_id)
     if not stats:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
@@ -114,18 +111,17 @@ async def get_user_stats(telegram_id: int):
 
 # Эндпоинты для вопросов
 @app.get("/questions/{question_id}", response_model=Question)
-async def get_question(question_id: int):
+async def get_question(question_id: int, qs=Depends(get_question_app_service)):
     """Получение вопроса по ID"""
-    question = await QuestionService.get_question_by_id(question_id)
+    question = await qs.get(question_id)
     if not question:
         raise HTTPException(status_code=404, detail="Вопрос не найден")
     return question
 
 
 @app.post("/questions/random", response_model=Question)
-async def get_random_question(request: QuestionRequest):
+async def get_random_question(request: QuestionRequest, qs=Depends(get_question_app_service)):
     """Получение случайного вопроса"""
-    qs = get_question_app_service()
     # Используем фиктивного telegram_id=0? Лучше передавать из клиента, но для MVP оставим
     question = await qs.random_for_user(0, request.level, request.category)
     if not question:
@@ -146,7 +142,7 @@ async def create_question(question_data: QuestionCreate):
 
 
 @app.post("/admin/questions", response_model=Question)
-async def admin_create_question(question_data: QuestionCreate, x_admin_token: str | None = Header(default=None)):
+async def admin_create_question(question_data: QuestionCreate, x_admin_token: str | None = Header(default=None), qs=Depends(get_question_app_service)):
     if not settings.admin_token or x_admin_token != settings.admin_token:
         raise HTTPException(status_code=401, detail="unauthorized")
     question = Question(
@@ -161,36 +157,32 @@ async def admin_create_question(question_data: QuestionCreate, x_admin_token: st
         hints=question_data.hints,
         tags=question_data.tags
     )
-    qs = get_question_app_service()
     created = await qs.create(question)
     return created
 
 
 @app.put("/admin/questions/{question_id}", response_model=Question)
-async def admin_update_question(question_id: int, question_data: QuestionUpdate, x_admin_token: str | None = Header(default=None)):
+async def admin_update_question(question_id: int, question_data: QuestionUpdate, x_admin_token: str | None = Header(default=None), qs=Depends(get_question_app_service)):
     if not settings.admin_token or x_admin_token != settings.admin_token:
         raise HTTPException(status_code=401, detail="unauthorized")
     # Простая реализация: создаём как новый объект c тем же id (для MVP)
-    qs = get_question_app_service()
     updated = await qs.update(question_id, question_data.model_dump(exclude_unset=True))
     return updated
 
 
 @app.delete("/admin/questions/{question_id}")
-async def admin_delete_question(question_id: int, x_admin_token: str | None = Header(default=None)):
+async def admin_delete_question(question_id: int, x_admin_token: str | None = Header(default=None), qs=Depends(get_question_app_service)):
     if not settings.admin_token or x_admin_token != settings.admin_token:
         raise HTTPException(status_code=401, detail="unauthorized")
     # Для MVP: удаление напрямую через сессию ORM
-    qs = get_question_app_service()
     ok = await qs.delete(question_id)
     return {"status": "deleted" if ok else "not_found", "id": question_id}
 
 
 @app.get("/admin/questions", response_model=list[Question])
-async def admin_search_questions(level: str | None = None, category: str | None = None, q: str | None = None, limit: int = 20, offset: int = 0, x_admin_token: str | None = Header(default=None)):
+async def admin_search_questions(level: str | None = None, category: str | None = None, q: str | None = None, limit: int = 20, offset: int = 0, x_admin_token: str | None = Header(default=None), qs=Depends(get_question_app_service)):
     if not settings.admin_token or x_admin_token != settings.admin_token:
         raise HTTPException(status_code=401, detail="unauthorized")
-    qs = get_question_app_service()
     res = await qs.search(level, category, q, limit, offset)
     return res
 

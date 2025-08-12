@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Optional, List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import select, update as sa_update, delete as sa_delete
 from ..database import database, User as UserORM, Question as QuestionORM, Answer as AnswerORM
 from ..models import User, Question, Answer
 from ..domain.entities import QuestionEntity, entity_to_dto_question
@@ -24,10 +25,20 @@ class SqlAlchemyUserRepository(UserRepository):
 
 class SqlAlchemyQuestionRepository(QuestionRepository):
     async def get_by_id(self, question_id: int) -> Optional[Question]:
-        return await database.get_question_by_id(question_id)
+        async with database.get_session() as session:
+            return await session.get(QuestionORM, question_id)
 
     async def get_random(self, level: str, category: str, exclude_ids: Optional[List[int]] = None) -> Optional[Question]:
-        return await database.get_random_question(level, category, exclude_ids or [])
+        async with database.get_session() as session:
+            stmt = select(QuestionORM).where(
+                QuestionORM.level == level,
+                QuestionORM.category == category,
+            )
+            if exclude_ids:
+                stmt = stmt.where(~QuestionORM.id.in_(exclude_ids))
+            stmt = stmt.order_by(QuestionORM.id.desc()).limit(1)
+            result = await session.scalars(stmt)
+            return result.first()
 
     async def create(self, question: Question | QuestionEntity) -> Question:
         if isinstance(question, QuestionEntity):
@@ -42,38 +53,32 @@ class SqlAlchemyQuestionRepository(QuestionRepository):
             return dto
 
     async def search(self, level: Optional[str] = None, category: Optional[str] = None, q: Optional[str] = None, limit: int = 20, offset: int = 0) -> List[Question]:
-        # Простой MVP SQL
-        conditions = ["1=1"]
-        params: Dict[str, Any] = {}
-        if level:
-            conditions.append("level = :level")
-            params["level"] = level
-        if category:
-            conditions.append("category = :category")
-            params["category"] = category
-        if q:
-            conditions.append("(title LIKE :q OR content LIKE :q)")
-            params["q"] = f"%{q}%"
-        where = " AND ".join(conditions)
-        sql = f"SELECT * FROM questions WHERE {where} ORDER BY id DESC LIMIT :limit OFFSET :offset"
-        params.update({"limit": limit, "offset": offset})
         async with database.get_session() as session:
-            result = await session.execute(sql, params)
-            return result.fetchall()  # ORM rows map to model via session config
+            stmt = select(QuestionORM)
+            if level:
+                stmt = stmt.where(QuestionORM.level == level)
+            if category:
+                stmt = stmt.where(QuestionORM.category == category)
+            if q:
+                like = f"%{q}%"
+                stmt = stmt.where((QuestionORM.title.ilike(like)) | (QuestionORM.content.ilike(like)))
+            stmt = stmt.order_by(QuestionORM.id.desc()).limit(limit).offset(offset)
+            result = await session.scalars(stmt)
+            return list(result.all())
 
     async def update(self, question_id: int, data: Dict[str, Any]) -> Optional[Question]:
-        if not data:
-            return await self.get_by_id(question_id)
-        sets = ", ".join([f"{k} = :{k}" for k in data])
-        sql = f"UPDATE questions SET {sets} WHERE id = :id"
         async with database.get_session() as session:
-            await session.execute(sql, {**data, "id": question_id})
+            if not data:
+                return await session.get(QuestionORM, question_id)
+            await session.execute(
+                sa_update(QuestionORM).where(QuestionORM.id == question_id).values(**data)
+            )
             await session.commit()
-            return await self.get_by_id(question_id)
+            return await session.get(QuestionORM, question_id)
 
     async def delete(self, question_id: int) -> bool:
         async with database.get_session() as session:
-            result = await session.execute("DELETE FROM questions WHERE id = :id", {"id": question_id})
+            await session.execute(sa_delete(QuestionORM).where(QuestionORM.id == question_id))
             await session.commit()
             return True
 

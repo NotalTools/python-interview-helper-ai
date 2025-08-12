@@ -429,10 +429,10 @@ class InterviewBot:
                 "❌ Произошла ошибка. Попробуйте еще раз или используйте /help для справки."
             )
     
-    async def run(self):
-        """Запуск бота"""
+    def run(self):
+        """Запуск бота (PTB v20: run_polling синхронный)"""
         logger.info("Запуск Telegram бота...")
-        await self.application.run_polling()
+        self.application.run_polling()
 
 
 # Создание экземпляра бота
