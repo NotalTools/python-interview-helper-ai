@@ -74,13 +74,42 @@ class AppConstants:
     # Мультиагентные пайплайны для интервью по категориям
     # Имя агента → конкретный класс определяется в интервью-оркестраторе
     INTERVIEW_CATEGORY_PIPELINES: Dict[str, list[str]] = {
-        # MVP: включаем только для system_design
         "system_design": [
             "architect",
             "storage",
             "reliability",
             "tradeoffs",
-        ]
+        ],
+        "algorithms": [
+            "alg_taskmaster",
+            "alg_complexity",
+            "alg_testgen",
+            "alg_optimizer",
+        ],
+        "databases": [
+            "db_modeler",
+            "db_query_optimizer",
+            "db_consistency",
+            "db_replication",
+        ],
+        "networking": [
+            "net_protocols",
+            "net_latency",
+            "net_lb",
+            "net_chaos",
+        ],
+        "security": [
+            "sec_threats",
+            "sec_secure_code",
+            "sec_crypto",
+            "sec_compliance",
+        ],
+        "backend": [
+            "be_api",
+            "be_perf",
+            "be_reliability",
+            "be_obs",
+        ],
     }
 
 
