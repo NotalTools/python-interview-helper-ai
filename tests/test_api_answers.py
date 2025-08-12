@@ -8,12 +8,14 @@ from src.container import get_interview_app_service, get_answer_app_service
 
 class FakeInterviewService:
     async def answer_text(self, user_id: int, question_id: int, text: str) -> Tuple[object, dict]:
-        return object(), {"score": 10, "feedback": "ok", "is_correct": True}
+        class A: id = 1
+        return A(), {"score": 10, "feedback": "ok", "is_correct": True}
 
 
 class FakeAnswerService:
     async def answer_voice(self, user_id: int, question_id: int, voice_file_id: str, bot_token: str) -> Tuple[object, dict]:
-        return object(), {"score": 8, "feedback": "ok-voice", "is_correct": True}
+        class A: id = 2
+        return A(), {"score": 8, "feedback": "ok-voice", "is_correct": True}
 
 
 def test_answers_text_override():

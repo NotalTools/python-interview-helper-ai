@@ -112,8 +112,8 @@ class Database:
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
     
-    async def get_session(self) -> AsyncSession:
-        """Получение сессии базы данных"""
+    def get_session(self) -> AsyncSession:
+        """Получение сессии базы данных (async session factory)"""
         if not self.session_maker:
             raise RuntimeError("База данных не подключена")
         return self.session_maker()

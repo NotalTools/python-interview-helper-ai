@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 import logging
 
 from .config import settings, AppConstants
+import os
 from .database import database
 from .models import (
     User, UserCreate, UserUpdate, UserStats,
@@ -131,9 +132,14 @@ async def get_random_question(request: QuestionRequest, qs=Depends(get_question_
 from fastapi import Header
 
 
+# runtime fetch admin token to allow tests to override env after import
+def _get_admin_token() -> str:
+    return os.getenv("ADMIN_TOKEN") or settings.admin_token or ""
+
+
 @app.post("/admin/questions", response_model=Question)
 async def admin_create_question(question_data: QuestionCreate, x_admin_token: str | None = Header(default=None), qs=Depends(get_question_app_service)):
-    if not settings.admin_token or x_admin_token != settings.admin_token:
+    if not _get_admin_token() or x_admin_token != _get_admin_token():
         raise HTTPException(status_code=401, detail="unauthorized")
     question = Question(
         title=question_data.title,
@@ -153,7 +159,7 @@ async def admin_create_question(question_data: QuestionCreate, x_admin_token: st
 
 @app.put("/admin/questions/{question_id}", response_model=Question)
 async def admin_update_question(question_id: int, question_data: QuestionUpdate, x_admin_token: str | None = Header(default=None), qs=Depends(get_question_app_service)):
-    if not settings.admin_token or x_admin_token != settings.admin_token:
+    if not _get_admin_token() or x_admin_token != _get_admin_token():
         raise HTTPException(status_code=401, detail="unauthorized")
     # Простая реализация: создаём как новый объект c тем же id (для MVP)
     updated = await qs.update(question_id, question_data.model_dump(exclude_unset=True))
@@ -162,7 +168,7 @@ async def admin_update_question(question_id: int, question_data: QuestionUpdate,
 
 @app.delete("/admin/questions/{question_id}")
 async def admin_delete_question(question_id: int, x_admin_token: str | None = Header(default=None), qs=Depends(get_question_app_service)):
-    if not settings.admin_token or x_admin_token != settings.admin_token:
+    if not _get_admin_token() or x_admin_token != _get_admin_token():
         raise HTTPException(status_code=401, detail="unauthorized")
     # Для MVP: удаление напрямую через сессию ORM
     ok = await qs.delete(question_id)
@@ -171,7 +177,7 @@ async def admin_delete_question(question_id: int, x_admin_token: str | None = He
 
 @app.get("/admin/questions")
 async def admin_search_questions(level: str | None = None, category: str | None = None, q: str | None = None, limit: int = 20, offset: int = 0, x_admin_token: str | None = Header(default=None), qs=Depends(get_question_app_service)):
-    if not settings.admin_token or x_admin_token != settings.admin_token:
+    if not _get_admin_token() or x_admin_token != _get_admin_token():
         raise HTTPException(status_code=401, detail="unauthorized")
     res = await qs.search(level, category, q, limit, offset)
     # Возвращаем items + total для UI пагинации
@@ -191,7 +197,7 @@ async def submit_text_answer(
         if not limiter.allow(user_id):
             raise HTTPException(status_code=429, detail="Daily limit exceeded")
         answer, evaluation = await app_service.answer_text(user_id, question_id, answer_text)
-        return evaluation
+        return {"answer_id": answer.id, **evaluation}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -213,7 +219,7 @@ async def submit_voice_answer(
         answer, evaluation = await app_answers.answer_voice(
             user_id, question_id, voice_file_id, settings.telegram_bot_token
         )
-        return evaluation
+        return {"answer_id": answer.id, **evaluation}
         
     except HTTPException:
         raise
