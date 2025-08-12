@@ -22,6 +22,9 @@ class InterviewBot:
     
     def __init__(self):
         self.application = Application.builder().token(settings.telegram_bot_token).build()
+        # безопасно удалим webhook, если он был установлен ранее
+        # чтобы polling начал получать апдейты
+        self.application.bot.delete_webhook(drop_pending_updates=True)
         self.setup_handlers()
     
     def setup_handlers(self):

@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from src.config import settings
 from src.api import app
 from src.telegram_bot import bot
+from src.database import database
 
 # Настройка логирования
 logging.basicConfig(
@@ -29,15 +30,28 @@ logger = logging.getLogger(__name__)
 
 
 async def run_bot():
-    """Запуск только Telegram бота"""
+    """Запуск только Telegram бота (polling) + инициализация БД"""
     try:
-        logger.info("Запуск Telegram бота...")
-        await bot.run()
+        # Подключаем БД, как это делается в lifespan FastAPI
+        await database.connect()
+        await database.create_tables()
+        logger.info("База данных подключена (bot mode)")
+
+        # run_polling блокирующий → запускаем в отдельном потоке
+        logger.info("Запуск Telegram бота (polling)...")
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, bot.run)
     except KeyboardInterrupt:
         logger.info("Бот остановлен пользователем")
     except Exception as e:
         logger.error(f"Ошибка при запуске бота: {e}")
         raise
+    finally:
+        try:
+            await database.disconnect()
+            logger.info("База данных отключена (bot mode)")
+        except Exception:
+            pass
 
 
 async def run_api():
