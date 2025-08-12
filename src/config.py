@@ -42,6 +42,10 @@ class Settings(BaseSettings):
 
     # Лимиты
     daily_limit_per_user: int = Field(default=50, description="Дневной лимит оценок ответов на пользователя")
+
+    # Context7
+    context7_api_base: str = Field(default="", description="Базовый URL Context7 API")
+    context7_api_token: str = Field(default="", description="API токен Context7")
     
     class Config:
         env_file = ".env"

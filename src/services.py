@@ -14,6 +14,7 @@ from .interview_service import InterviewService
 from .database import database
 from .models import User, Question, Answer, UserStats, AnswerEvaluation
 from .domain.rubrics import build_rubric_text
+from .infrastructure.mcp.context7_client import Context7Client
 
 logger = logging.getLogger(__name__)
 
@@ -43,15 +44,23 @@ class OpenAIService(AIService):
             max_retries=2,
         )
         self._max_retries = 3
+        self.docs_client = Context7Client()
     
     async def evaluate_answer(self, question: Question, user_answer: str,
                             answer_type: str = "text",
                             multi_agent_notes: Optional[str] = None) -> AnswerEvaluation:
         """Оценка ответа пользователя с помощью OpenAI"""
-        
         experts_section = f"\n\nМнения экспертов по теме (конспект):\n{multi_agent_notes}" if multi_agent_notes else ""
         rubric_text = build_rubric_text(question.category)
         rubric_section = f"\n\n{rubric_text}" if rubric_text else ""
+        # Context7 (best-effort)
+        docs_section = ""
+        if settings.context7_api_base and settings.context7_api_token:
+            lib = "/tiangolo/fastapi" if question.category == "backend" else "/sqlalchemy/sqlalchemy"
+            docs = await self.docs_client.get_docs(lib, topic=question.title, tokens=600)
+            if docs:
+                docs_section = f"\n\nДокументация:\n{docs}"
+
         system_prompt = f"""
         Ты эксперт по техническим собеседованиям. Оцени ответ кандидата на вопрос.
         
@@ -62,7 +71,7 @@ class OpenAIService(AIService):
         Уровень сложности: {question.level}
         Категория: {question.category}
         Максимальный балл: {question.points}
-        {experts_section}{rubric_section}
+        {experts_section}{rubric_section}{docs_section}
         
         Ответ кандидата: {user_answer}
         Тип ответа: {answer_type}
@@ -81,7 +90,7 @@ class OpenAIService(AIService):
             "improvements": ["что можно улучшить"]
         }}
         """
-        
+
         for attempt in range(self._max_retries):
             try:
                 response = await self.client.chat.completions.create(
