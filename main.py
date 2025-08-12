@@ -33,11 +33,13 @@ def run_bot_sync():
     """Синхронный запуск бота: PTB сам управляет loop, БД управляется через post_init/post_shutdown."""
     try:
         logger.info("Запуск Telegram бота (polling)...")
+        import traceback
         bot.run()  # блокирующий вызов PTB v20
     except KeyboardInterrupt:
         logger.info("Бот остановлен пользователем")
     except Exception as e:
         logger.error(f"Ошибка при запуске бота: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise
 
 
@@ -68,10 +70,11 @@ async def run_both():
         logger.info("Запуск бота и API сервера...")
         
         # Запускаем оба сервиса одновременно
-        await asyncio.gather(
-            run_bot(),
-            run_api()
-        )
+        # Для бота используем отдельный поток, так как он blocking
+        bot_task = asyncio.create_task(asyncio.to_thread(run_bot_sync))
+        api_task = asyncio.create_task(run_api())
+        
+        await asyncio.gather(bot_task, api_task)
     except KeyboardInterrupt:
         logger.info("Приложение остановлено пользователем")
     except Exception as e:

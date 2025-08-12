@@ -85,9 +85,11 @@ class Database:
     async def connect(self):
         """Подключение к базе данных"""
         # Конвертируем URL для async
-        if settings.database_url.startswith("sqlite"):
+        if settings.database_url.startswith("sqlite://"):
+            # Только если URL начинается именно с sqlite:// (без драйвера)
             async_url = settings.database_url.replace("sqlite://", "sqlite+aiosqlite://")
         else:
+            # Если уже есть драйвер или другая БД, используем как есть
             async_url = settings.database_url
         
         self.engine = create_async_engine(
@@ -121,26 +123,32 @@ class Database:
     async def get_user_by_telegram_id(self, telegram_id: int) -> Optional[User]:
         """Получение пользователя по Telegram ID"""
         async with self.get_session() as session:
-            result = await session.execute(
-                text("SELECT * FROM users WHERE telegram_id = :telegram_id"),
-                {"telegram_id": telegram_id},
-            )
-            return result.scalar_one_or_none()
+            from sqlalchemy import select
+            stmt = select(User).where(User.telegram_id == telegram_id)
+            result = await session.scalars(stmt)
+            orm_user = result.first()
+            if not orm_user:
+                return None
+            # Конвертируем ORM объект в Pydantic модель
+            from .models import User as UserModel
+            return UserModel.model_validate(orm_user)
     
     async def create_user(self, telegram_id: int, username: str = None, 
                          first_name: str = None, last_name: str = None) -> User:
         """Создание нового пользователя"""
         async with self.get_session() as session:
-            user = User(
+            orm_user = User(
                 telegram_id=telegram_id,
                 username=username,
                 first_name=first_name,
                 last_name=last_name
             )
-            session.add(user)
+            session.add(orm_user)
             await session.commit()
-            await session.refresh(user)
-            return user
+            await session.refresh(orm_user)
+            # Конвертируем ORM объект в Pydantic модель
+            from .models import User as UserModel
+            return UserModel.model_validate(orm_user)
     
     async def update_user(self, telegram_id: int, **kwargs) -> Optional[User]:
         """Обновление пользователя"""

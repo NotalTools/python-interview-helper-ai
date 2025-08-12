@@ -26,7 +26,11 @@ class SqlAlchemyUserRepository(UserRepository):
 class SqlAlchemyQuestionRepository(QuestionRepository):
     async def get_by_id(self, question_id: int) -> Optional[Question]:
         async with database.get_session() as session:
-            return await session.get(QuestionORM, question_id)
+            orm_question = await session.get(QuestionORM, question_id)
+            if not orm_question:
+                return None
+            # Конвертируем ORM объект в Pydantic модель
+            return Question.model_validate(orm_question)
 
     async def get_random(self, level: str, category: str, exclude_ids: Optional[List[int]] = None) -> Optional[Question]:
         async with database.get_session() as session:
@@ -38,7 +42,11 @@ class SqlAlchemyQuestionRepository(QuestionRepository):
                 stmt = stmt.where(~QuestionORM.id.in_(exclude_ids))
             stmt = stmt.order_by(QuestionORM.id.desc()).limit(1)
             result = await session.scalars(stmt)
-            return result.first()
+            orm_question = result.first()
+            if not orm_question:
+                return None
+            # Конвертируем ORM объект в Pydantic модель
+            return Question.model_validate(orm_question)
 
     async def create(self, question: Question | QuestionEntity) -> Question:
         if isinstance(question, QuestionEntity):
@@ -46,11 +54,16 @@ class SqlAlchemyQuestionRepository(QuestionRepository):
             dto = entity_to_dto_question(question)
         else:
             dto = question
+        
+        # Создаем ORM объект из Pydantic модели
+        orm_question = QuestionORM(**dto.model_dump(exclude={'id'}))
+        
         async with database.get_session() as session:
-            session.add(dto)
+            session.add(orm_question)
             await session.commit()
-            await session.refresh(dto)
-            return dto
+            await session.refresh(orm_question)
+            # Возвращаем Pydantic модель
+            return Question.model_validate(orm_question)
 
     async def search(self, level: Optional[str] = None, category: Optional[str] = None, q: Optional[str] = None, limit: int = 20, offset: int = 0) -> List[Question]:
         async with database.get_session() as session:
@@ -64,7 +77,9 @@ class SqlAlchemyQuestionRepository(QuestionRepository):
                 stmt = stmt.where((QuestionORM.title.ilike(like)) | (QuestionORM.content.ilike(like)))
             stmt = stmt.order_by(QuestionORM.id.desc()).limit(limit).offset(offset)
             result = await session.scalars(stmt)
-            return list(result.all())
+            orm_questions = list(result.all())
+            # Конвертируем ORM объекты в Pydantic модели
+            return [Question.model_validate(orm_q) for orm_q in orm_questions]
 
     async def count(self, level: Optional[str] = None, category: Optional[str] = None, q: Optional[str] = None) -> int:
         async with database.get_session() as session:
@@ -82,12 +97,18 @@ class SqlAlchemyQuestionRepository(QuestionRepository):
     async def update(self, question_id: int, data: Dict[str, Any]) -> Optional[Question]:
         async with database.get_session() as session:
             if not data:
-                return await session.get(QuestionORM, question_id)
+                orm_question = await session.get(QuestionORM, question_id)
+                if not orm_question:
+                    return None
+                return Question.model_validate(orm_question)
             await session.execute(
                 sa_update(QuestionORM).where(QuestionORM.id == question_id).values(**data)
             )
             await session.commit()
-            return await session.get(QuestionORM, question_id)
+            orm_question = await session.get(QuestionORM, question_id)
+            if not orm_question:
+                return None
+            return Question.model_validate(orm_question)
 
     async def delete(self, question_id: int) -> bool:
         async with database.get_session() as session:

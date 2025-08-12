@@ -325,6 +325,9 @@ class InterviewBot:
             
         except Exception as e:
             logger.error(f"Ошибка при получении вопроса: {e}")
+            logger.error(f"Debug info - user: {user if 'user' in locals() else 'N/A'}, user_id: {user_id}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             await query.edit_message_text("❌ Ошибка при получении вопроса")
     
     async def skip_question(self, query, user_id: int):
@@ -379,11 +382,11 @@ class InterviewBot:
             response_text = f"""
 📊 Результат оценки:
 
-🏆 Получено баллов: {evaluation.score}/{points}
-✅ Правильность: {'Да' if evaluation.is_correct else 'Нет'}
+🏆 Получено баллов: {evaluation["score"]}/{points}
+✅ Правильность: {'Да' if evaluation["is_correct"] else 'Нет'}
 
 💬 Обратная связь:
-{evaluation.feedback}
+{evaluation["feedback"]}
 
 🎯 Хотите еще один вопрос?
             """
@@ -430,11 +433,11 @@ class InterviewBot:
 
 🎤 Распознанный текст: "{answer.answer_text}"
 
-🏆 Получено баллов: {evaluation.score}/{points}
-✅ Правильность: {'Да' if evaluation.is_correct else 'Нет'}
+🏆 Получено баллов: {evaluation["score"]}/{points}
+✅ Правильность: {'Да' if evaluation["is_correct"] else 'Нет'}
 
 💬 Обратная связь:
-{evaluation.feedback}
+{evaluation["feedback"]}
 
 🎯 Хотите еще один вопрос?
             """
@@ -454,7 +457,7 @@ class InterviewBot:
         """Обработка ошибок"""
         logger.error(f"Ошибка в боте: {context.error}")
         
-        if update.effective_message:
+        if update and update.effective_message:
             await update.effective_message.reply_text(
                 "❌ Произошла ошибка. Попробуйте еще раз или используйте /help для справки."
             )

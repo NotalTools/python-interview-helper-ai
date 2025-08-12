@@ -23,9 +23,13 @@ RUN uv sync --frozen --no-dev
 
 # Copy source
 COPY src ./src
+COPY scripts ./scripts
 COPY main.py ./
 COPY README.md ./
 COPY questions.example.yaml ./
+
+# Create temp directory for voice files
+RUN mkdir -p temp
 
 EXPOSE 8000
 
