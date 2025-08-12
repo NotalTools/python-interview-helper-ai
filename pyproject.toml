@@ -21,6 +21,7 @@ dependencies = [
     "alembic>=1.12.0",
     "asyncpg>=0.29.0",
     "aiohttp>=3.8.0",
+    "aiosqlite>=0.19.0",
     "pyyaml>=6.0.1",
 ]
 requires-python = ">=3.8.1"
@@ -49,3 +50,6 @@ strict_optional = true
 [tool.ruff]
 line-length = 100
 select = ["E","F","I"] 
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
