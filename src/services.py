@@ -2,10 +2,12 @@ import asyncio
 import logging
 import json
 from typing import Dict, List, Optional, Tuple
+from datetime import datetime, timedelta
 from openai import AsyncOpenAI
 from pydub import AudioSegment
 import aiofiles
 import aiohttp
+from aiohttp import ClientTimeout
 
 from .config import settings
 from .interview_service import InterviewService
@@ -34,7 +36,13 @@ class OpenAIService(AIService):
     """Сервис для работы с OpenAI API"""
     
     def __init__(self):
-        self.client = AsyncOpenAI(api_key=settings.openai_api_key)
+        # Настраиваем таймауты и базовые ретраи SDK
+        self.client = AsyncOpenAI(
+            api_key=settings.openai_api_key,
+            timeout=20.0,
+            max_retries=2,
+        )
+        self._max_retries = 3
     
     async def evaluate_answer(self, question: Question, user_answer: str,
                             answer_type: str = "text",
@@ -74,48 +82,53 @@ class OpenAIService(AIService):
         }}
         """
         
-        try:
-            response = await self.client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"Оцени этот ответ: {user_answer}"}
-                ],
-                temperature=0.3,
-                max_tokens=1000
-            )
-            
-            result = json.loads(response.choices[0].message.content)
-            
-            return AnswerEvaluation(
-                answer_id=0,  # Будет установлено позже
-                score=result["score"],
-                feedback=result["feedback"],
-                is_correct=result["is_correct"]
-            )
-            
-        except Exception as e:
-            logger.error(f"Ошибка при оценке ответа OpenAI: {e}")
-            return AnswerEvaluation(
-                answer_id=0,
-                score=0,
-                feedback="Произошла ошибка при оценке ответа. Попробуйте еще раз.",
-                is_correct=False
-            )
+        for attempt in range(self._max_retries):
+            try:
+                response = await self.client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": f"Оцени этот ответ: {user_answer}"}
+                    ],
+                    temperature=0.3,
+                    max_tokens=1000
+                )
+                result = json.loads(response.choices[0].message.content)
+                return AnswerEvaluation(
+                    answer_id=0,
+                    score=result["score"],
+                    feedback=result["feedback"],
+                    is_correct=result["is_correct"]
+                )
+            except Exception as e:
+                logger.warning(f"OpenAI evaluate attempt {attempt+1} failed: {e}")
+                if attempt == self._max_retries - 1:
+                    logger.error(f"Ошибка при оценке ответа OpenAI: {e}")
+                    return AnswerEvaluation(
+                        answer_id=0,
+                        score=0,
+                        feedback="Произошла ошибка при оценке ответа. Попробуйте еще раз.",
+                        is_correct=False
+                    )
+                await asyncio.sleep(0.5 * (2 ** attempt))
     
     async def transcribe_voice(self, voice_file_path: str) -> str:
         """Транскрипция голосового сообщения"""
-        try:
-            with open(voice_file_path, "rb") as audio_file:
-                transcript = await self.client.audio.transcriptions.create(
-                    model="whisper-1",
-                    file=audio_file,
-                    language="ru"
-                )
-                return transcript.text
-        except Exception as e:
-            logger.error(f"Ошибка при транскрипции OpenAI: {e}")
-            return ""
+        for attempt in range(self._max_retries):
+            try:
+                with open(voice_file_path, "rb") as audio_file:
+                    transcript = await self.client.audio.transcriptions.create(
+                        model="whisper-1",
+                        file=audio_file,
+                        language="ru"
+                    )
+                    return transcript.text
+            except Exception as e:
+                logger.warning(f"OpenAI transcribe attempt {attempt+1} failed: {e}")
+                if attempt == self._max_retries - 1:
+                    logger.error(f"Ошибка при транскрипции OpenAI: {e}")
+                    return ""
+                await asyncio.sleep(0.5 * (2 ** attempt))
 
 
 class GigaChatService(AIService):
@@ -127,11 +140,14 @@ class GigaChatService(AIService):
         self.auth_url = settings.gigachat_auth_url
         self.api_url = settings.gigachat_api_url
         self.access_token = None
-        self.session = aiohttp.ClientSession()
+        self.token_expiry: Optional[datetime] = None
+        self.session = aiohttp.ClientSession(timeout=ClientTimeout(total=20))
+        self._max_retries = 3
     
     async def _get_access_token(self) -> str:
         """Получение access token для GigaChat"""
-        if self.access_token:
+        # проверяем валидность токена
+        if self.access_token and self.token_expiry and datetime.utcnow() < self.token_expiry:
             return self.access_token
         
         try:
@@ -145,6 +161,10 @@ class GigaChatService(AIService):
                 if response.status == 200:
                     token_data = await response.json()
                     self.access_token = token_data["access_token"]
+                    # expires_in в секундах, если нет — по умолчанию 10 минут
+                    expires_in = int(token_data.get("expires_in", 600))
+                    # небольшой запас 30 секунд
+                    self.token_expiry = datetime.utcnow() + timedelta(seconds=max(expires_in - 30, 30))
                     return self.access_token
                 else:
                     raise Exception(f"Ошибка авторизации GigaChat: {response.status}")
@@ -191,50 +211,57 @@ class GigaChatService(AIService):
         }}
         """
         
-        try:
-            access_token = await self._get_access_token()
-            
-            headers = {
-                "Authorization": f"Bearer {access_token}",
-                "Content-Type": "application/json"
-            }
-            
-            payload = {
-                "model": "GigaChat:latest",
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"Оцени этот ответ: {user_answer}"}
-                ],
-                "temperature": 0.3,
-                "max_tokens": 1000
-            }
-            
-            async with self.session.post(
-                f"{self.api_url}/chat/completions",
-                headers=headers,
-                json=payload
-            ) as response:
-                if response.status == 200:
-                    response_data = await response.json()
-                    result = json.loads(response_data["choices"][0]["message"]["content"])
-                    
+        for attempt in range(self._max_retries):
+            try:
+                access_token = await self._get_access_token()
+                headers = {
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json"
+                }
+                payload = {
+                    "model": "GigaChat:latest",
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": f"Оцени этот ответ: {user_answer}"}
+                    ],
+                    "temperature": 0.3,
+                    "max_tokens": 1000
+                }
+                async with self.session.post(
+                    f"{self.api_url}/chat/completions",
+                    headers=headers,
+                    json=payload
+                ) as response:
+                    if response.status == 401:
+                        # возможна просрочка токена — обновим и повторим
+                        self.access_token = None
+                        self.token_expiry = None
+                        if attempt < self._max_retries - 1:
+                            continue
+                    if response.status in (429, 500, 502, 503, 504):
+                        raise Exception(f"retryable status {response.status}")
+                    if response.status == 200:
+                        response_data = await response.json()
+                        result = json.loads(response_data["choices"][0]["message"]["content"])
+                        return AnswerEvaluation(
+                            answer_id=0,
+                            score=result["score"],
+                            feedback=result["feedback"],
+                            is_correct=result["is_correct"]
+                        )
+                    else:
+                        raise Exception(f"Ошибка API GigaChat: {response.status}")
+            except Exception as e:
+                logger.warning(f"GigaChat evaluate attempt {attempt+1} failed: {e}")
+                if attempt == self._max_retries - 1:
+                    logger.error(f"Ошибка при оценке ответа GigaChat: {e}")
                     return AnswerEvaluation(
-                        answer_id=0,  # Будет установлено позже
-                        score=result["score"],
-                        feedback=result["feedback"],
-                        is_correct=result["is_correct"]
+                        answer_id=0,
+                        score=0,
+                        feedback="Произошла ошибка при оценке ответа. Попробуйте еще раз.",
+                        is_correct=False
                     )
-                else:
-                    raise Exception(f"Ошибка API GigaChat: {response.status}")
-                    
-        except Exception as e:
-            logger.error(f"Ошибка при оценке ответа GigaChat: {e}")
-            return AnswerEvaluation(
-                answer_id=0,
-                score=0,
-                feedback="Произошла ошибка при оценке ответа. Попробуйте еще раз.",
-                is_correct=False
-            )
+                await asyncio.sleep(0.5 * (2 ** attempt))
     
     async def transcribe_voice(self, voice_file_path: str) -> str:
         """Транскрипция голосового сообщения через GigaChat"""
