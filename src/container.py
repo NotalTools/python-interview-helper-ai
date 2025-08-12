@@ -10,6 +10,7 @@ from .infrastructure.ai import DefaultAIProvider
 from .infrastructure.executor import PistonExecutor
 from .infrastructure.voice import TelegramVoiceStorage
 from .infrastructure.orchestrator import DefaultOrchestrator
+from .infrastructure.docs import Context7DocsProvider
 from .application.services import InterviewAppService
 from .application.user_services import UserAppService, QuestionAppService, AnswerAppService, TutorAppService
 
@@ -46,6 +47,7 @@ def get_interview_app_service() -> InterviewAppService:
         questions=get_question_repo(),
         answers=get_answer_repo(),
         ai=get_ai_provider(),
+        docs=Context7DocsProvider(),
     )
 
 

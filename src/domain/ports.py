@@ -89,3 +89,9 @@ class VoiceStorage(Protocol):
 class Orchestrator(Protocol):
     async def prepare_notes(self, category: str, user_id: int, level: str, topic: str) -> str:
         ...
+
+
+class DocsProvider(Protocol):
+    async def get_docs(self, library_id: str, topic: str | None = None, tokens: int = 2000) -> str:
+        """Возвращает выдержку из документации (Context7 или иной провайдер)."""
+        ...
