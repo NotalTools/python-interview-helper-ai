@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Body
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
@@ -192,15 +192,14 @@ async def admin_search_questions(level: str | None = None, category: str | None 
 async def submit_text_answer(
     user_id: int,
     question_id: int,
-    answer_text: str,
-    background_tasks: BackgroundTasks
+    answer_text: str = Body(..., min_length=3),
+    background_tasks: BackgroundTasks,
+    app_service=Depends(get_interview_app_service),
 ):
     """Отправка текстового ответа"""
     try:
         if not limiter.allow(user_id):
             raise HTTPException(status_code=429, detail="Daily limit exceeded")
-        # Через application layer (DDD) — использует порты/адаптеры
-        app_service = get_interview_app_service()
         answer, evaluation = await app_service.answer_text(user_id, question_id, answer_text)
         return evaluation
     except ValueError as e:
@@ -214,14 +213,14 @@ async def submit_text_answer(
 async def submit_voice_answer(
     user_id: int,
     question_id: int,
-    voice_file_id: str,
-    background_tasks: BackgroundTasks
+    voice_file_id: str = Body(..., min_length=10),
+    background_tasks: BackgroundTasks,
+    app_answers=Depends(get_answer_app_service),
 ):
     """Отправка голосового ответа"""
     try:
         if not limiter.allow(user_id):
             raise HTTPException(status_code=429, detail="Daily limit exceeded")
-        app_answers = get_answer_app_service()
         answer, evaluation = await app_answers.answer_voice(
             user_id, question_id, voice_file_id, settings.telegram_bot_token
         )
