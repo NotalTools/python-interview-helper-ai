@@ -7,7 +7,7 @@ from .config import settings, AppConstants
 from .database import database
 from .models import (
     User, UserCreate, UserUpdate, UserStats,
-    Question, QuestionCreate, QuestionRequest,
+    Question, QuestionCreate, QuestionUpdate, QuestionRequest,
     Answer, AnswerCreate, AnswerEvaluation,
     TelegramWebhook
 )
@@ -167,24 +167,10 @@ async def admin_create_question(question_data: QuestionCreate, x_admin_token: st
 
 
 @app.put("/admin/questions/{question_id}", response_model=Question)
-async def admin_update_question(question_id: int, question_data: QuestionCreate, x_admin_token: str | None = Header(default=None)):
+async def admin_update_question(question_id: int, question_data: QuestionUpdate, x_admin_token: str | None = Header(default=None)):
     if not settings.admin_token or x_admin_token != settings.admin_token:
         raise HTTPException(status_code=401, detail="unauthorized")
     # Простая реализация: создаём как новый объект c тем же id (для MVP)
-    entity = QuestionEntity(
-        id=question_id,
-        title=question_data.title,
-        content=question_data.content,
-        level=question_data.level,
-        category=question_data.category,
-        question_type=question_data.question_type,
-        points=question_data.points,
-        correct_answer=question_data.correct_answer,
-        explanation=question_data.explanation,
-        hints=question_data.hints,
-        tags=question_data.tags,
-    )
-    entity.validate()
     qs = get_question_app_service()
     updated = await qs.update(question_id, question_data.model_dump(exclude_unset=True))
     return updated

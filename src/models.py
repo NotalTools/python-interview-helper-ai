@@ -57,6 +57,20 @@ class QuestionCreate(QuestionBase):
     tags: Optional[List[str]] = Field(None, description="Теги вопроса")
 
 
+class QuestionUpdate(BaseModel):
+    """Частичное обновление вопроса"""
+    title: Optional[str] = None
+    content: Optional[str] = None
+    level: Optional[str] = None
+    category: Optional[str] = None
+    question_type: Optional[str] = None
+    points: Optional[int] = None
+    correct_answer: Optional[str] = None
+    explanation: Optional[str] = None
+    hints: Optional[List[str]] = None
+    tags: Optional[List[str]] = None
+
+
 class Question(QuestionBase):
     """Полная модель вопроса"""
     id: int = Field(..., description="ID вопроса")
