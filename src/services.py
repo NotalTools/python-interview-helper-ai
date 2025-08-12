@@ -14,7 +14,6 @@ from .interview_service import InterviewService
 from .database import database
 from .models import User, Question, Answer, UserStats, AnswerEvaluation
 from .domain.rubrics import build_rubric_text
-from .infrastructure.mcp.context7_client import Context7Client
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +43,7 @@ class OpenAIService(AIService):
             max_retries=2,
         )
         self._max_retries = 3
-        self.docs_client = Context7Client()
+        self.docs_client = None  # Удалено по требованию
     
     async def evaluate_answer(self, question: Question, user_answer: str,
                             answer_type: str = "text",
@@ -55,11 +54,7 @@ class OpenAIService(AIService):
         rubric_section = f"\n\n{rubric_text}" if rubric_text else ""
         # Context7 (best-effort)
         docs_section = ""
-        if settings.context7_api_base and settings.context7_api_token:
-            lib = "/tiangolo/fastapi" if question.category == "backend" else "/sqlalchemy/sqlalchemy"
-            docs = await self.docs_client.get_docs(lib, topic=question.title, tokens=600)
-            if docs:
-                docs_section = f"\n\nДокументация:\n{docs}"
+        # Интеграция Context7 отключена
 
         system_prompt = f"""
         Ты эксперт по техническим собеседованиям. Оцени ответ кандидата на вопрос.
