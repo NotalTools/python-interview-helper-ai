@@ -13,7 +13,7 @@ from .config import settings
 from .interview_service import InterviewService
 from .database import database
 from .models import User, Question, Answer, UserStats, AnswerEvaluation
-from .domain.rubrics import build_rubric_text
+from .prompt_context import build_prompt_context
 
 logger = logging.getLogger(__name__)
 
@@ -49,12 +49,7 @@ class OpenAIService(AIService):
                             answer_type: str = "text",
                             multi_agent_notes: Optional[str] = None) -> AnswerEvaluation:
         """Оценка ответа пользователя с помощью OpenAI"""
-        experts_section = f"\n\nМнения экспертов по теме (конспект):\n{multi_agent_notes}" if multi_agent_notes else ""
-        rubric_text = build_rubric_text(question.category)
-        rubric_section = f"\n\n{rubric_text}" if rubric_text else ""
-        # Context7 (best-effort)
-        docs_section = ""
-        # Интеграция Context7 отключена
+        context_section = build_prompt_context(question.category, multi_agent_notes)
 
         system_prompt = f"""
         Ты эксперт по техническим собеседованиям. Оцени ответ кандидата на вопрос.
@@ -66,7 +61,7 @@ class OpenAIService(AIService):
         Уровень сложности: {question.level}
         Категория: {question.category}
         Максимальный балл: {question.points}
-        {experts_section}{rubric_section}{docs_section}
+        {context_section}
         
         Ответ кандидата: {user_answer}
         Тип ответа: {answer_type}
@@ -182,9 +177,7 @@ class GigaChatService(AIService):
                             multi_agent_notes: Optional[str] = None) -> AnswerEvaluation:
         """Оценка ответа пользователя с помощью GigaChat"""
         
-        experts_section = f"\n\nМнения экспертов по теме (конспект):\n{multi_agent_notes}" if multi_agent_notes else ""
-        rubric_text = build_rubric_text(question.category)
-        rubric_section = f"\n\n{rubric_text}" if rubric_text else ""
+        context_section = build_prompt_context(question.category, multi_agent_notes)
         system_prompt = f"""
         Ты эксперт по техническим собеседованиям. Оцени ответ кандидата на вопрос.
         
@@ -195,7 +188,7 @@ class GigaChatService(AIService):
         Уровень сложности: {question.level}
         Категория: {question.category}
         Максимальный балл: {question.points}
-        {experts_section}{rubric_section}
+        {context_section}
         
         Ответ кандидата: {user_answer}
         Тип ответа: {answer_type}

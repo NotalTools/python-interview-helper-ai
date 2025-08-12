@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Body
+from fastapi import FastAPI, HTTPException, Depends, Body
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
@@ -11,11 +11,7 @@ from .models import (
     Answer, AnswerCreate, AnswerEvaluation,
     TelegramWebhook
 )
-from .services import (
-    UserService, QuestionService, AnswerService, 
-    VoiceService, OpenAIService
-)
-from fastapi import Depends
+ 
 from .container import get_interview_app_service
 from .routers.python_tutor import router as python_tutor_router
 from .container import (
@@ -132,13 +128,7 @@ async def get_random_question(request: QuestionRequest, qs=Depends(get_question_
     return question
 
 
-@app.post("/questions/", response_model=Question)
-async def create_question(question_data: QuestionCreate):
-    """Создание нового вопроса"""
-    # Простой админ-токен
-    from fastapi import Header
-    # В FastAPI нельзя добавлять параметры после объявления функции — делаем отдельный handler ниже
-    pass
+from fastapi import Header
 
 
 @app.post("/admin/questions", response_model=Question)
@@ -193,7 +183,6 @@ async def admin_search_questions(level: str | None = None, category: str | None 
 async def submit_text_answer(
     user_id: int,
     question_id: int,
-    background_tasks: BackgroundTasks,
     answer_text: str = Body(..., min_length=3),
     app_service=Depends(get_interview_app_service),
 ):
@@ -214,7 +203,6 @@ async def submit_text_answer(
 async def submit_voice_answer(
     user_id: int,
     question_id: int,
-    background_tasks: BackgroundTasks,
     voice_file_id: str = Body(..., min_length=10),
     app_answers=Depends(get_answer_app_service),
 ):
@@ -272,18 +260,4 @@ async def health_check():
     }
 
 
-# Вспомогательные функции
-async def cleanup_temp_files(*file_paths):
-    """Очистка временных файлов"""
-    import os
-    for file_path in file_paths:
-        try:
-            if os.path.exists(file_path):
-                os.remove(file_path)
-        except Exception as e:
-            logger.error(f"Ошибка при удалении файла {file_path}: {e}")
-
-
-# Создание директории для временных файлов
-import os
-os.makedirs("temp", exist_ok=True) 
+# Временные файлы не используются; вспомогательные функции удалены
