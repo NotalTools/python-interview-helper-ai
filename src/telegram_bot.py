@@ -286,6 +286,10 @@ class InterviewBot:
             # Получаем вопрос
             qs = get_question_app_service()
             question = await qs.random_for_user(user_id, user.level, user.category)
+
+            # Нормализуем тип вопроса (ORM / DTO / id)
+            if isinstance(question, int):
+                question = await qs.get(question)
             
             if not question:
                 await query.edit_message_text(
@@ -294,15 +298,22 @@ class InterviewBot:
                 return
             
             # Формируем сообщение с вопросом
+            q_id = getattr(question, "id", None) or (question.get("id") if isinstance(question, dict) else None)
+            q_title = getattr(question, "title", None) or (question.get("title") if isinstance(question, dict) else "")
+            q_content = getattr(question, "content", None) or (question.get("content") if isinstance(question, dict) else "")
+            q_hints = getattr(question, "hints", None) or (question.get("hints") if isinstance(question, dict) else None)
+            q_points = getattr(question, "points", None) or (question.get("points") if isinstance(question, dict) else 0)
+
+            hints_text = ", ".join(q_hints) if isinstance(q_hints, list) and q_hints else "Нет подсказок"
             question_text = f"""
-🎯 Вопрос #{question.id}
+🎯 Вопрос #{q_id}
 
-📝 {question.title}
+📝 {q_title}
 
-📄 {question.content}
+📄 {q_content}
 
-💡 Подсказки: {', '.join(question.hints) if question.hints else 'Нет подсказок'}
-🏆 Максимальный балл: {question.points}
+💡 Подсказки: {hints_text}
+🏆 Максимальный балл: {q_points}
 
 💬 Отправьте ваш ответ текстом или голосовым сообщением.
             """
@@ -325,6 +336,8 @@ class InterviewBot:
             # Получаем новый вопрос
             qs = get_question_app_service()
             question = await qs.random_for_user(user_id, user.level, user.category)
+            if isinstance(question, int):
+                question = await qs.get(question)
             
             if not question:
                 await query.edit_message_text(
