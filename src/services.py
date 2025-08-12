@@ -11,6 +11,7 @@ from .config import settings
 from .interview_service import InterviewService
 from .database import database
 from .models import User, Question, Answer, UserStats, AnswerEvaluation
+from .domain.rubrics import build_rubric_text
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,8 @@ class OpenAIService(AIService):
         """Оценка ответа пользователя с помощью OpenAI"""
         
         experts_section = f"\n\nМнения экспертов по теме (конспект):\n{multi_agent_notes}" if multi_agent_notes else ""
+        rubric_text = build_rubric_text(question.category)
+        rubric_section = f"\n\n{rubric_text}" if rubric_text else ""
         system_prompt = f"""
         Ты эксперт по техническим собеседованиям. Оцени ответ кандидата на вопрос.
         
@@ -51,7 +54,7 @@ class OpenAIService(AIService):
         Уровень сложности: {question.level}
         Категория: {question.category}
         Максимальный балл: {question.points}
-        {experts_section}
+        {experts_section}{rubric_section}
         
         Ответ кандидата: {user_answer}
         Тип ответа: {answer_type}
@@ -156,6 +159,8 @@ class GigaChatService(AIService):
         """Оценка ответа пользователя с помощью GigaChat"""
         
         experts_section = f"\n\nМнения экспертов по теме (конспект):\n{multi_agent_notes}" if multi_agent_notes else ""
+        rubric_text = build_rubric_text(question.category)
+        rubric_section = f"\n\n{rubric_text}" if rubric_text else ""
         system_prompt = f"""
         Ты эксперт по техническим собеседованиям. Оцени ответ кандидата на вопрос.
         
@@ -166,7 +171,7 @@ class GigaChatService(AIService):
         Уровень сложности: {question.level}
         Категория: {question.category}
         Максимальный балл: {question.points}
-        {experts_section}
+        {experts_section}{rubric_section}
         
         Ответ кандидата: {user_answer}
         Тип ответа: {answer_type}
