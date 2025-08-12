@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Optional, List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sqlalchemy import select, update as sa_update, delete as sa_delete
+from sqlalchemy import select, update as sa_update, delete as sa_delete, func
 from ..database import database, User as UserORM, Question as QuestionORM, Answer as AnswerORM
 from ..models import User, Question, Answer
 from ..domain.entities import QuestionEntity, entity_to_dto_question
@@ -65,6 +65,19 @@ class SqlAlchemyQuestionRepository(QuestionRepository):
             stmt = stmt.order_by(QuestionORM.id.desc()).limit(limit).offset(offset)
             result = await session.scalars(stmt)
             return list(result.all())
+
+    async def count(self, level: Optional[str] = None, category: Optional[str] = None, q: Optional[str] = None) -> int:
+        async with database.get_session() as session:
+            stmt = select(func.count(QuestionORM.id))
+            if level:
+                stmt = stmt.where(QuestionORM.level == level)
+            if category:
+                stmt = stmt.where(QuestionORM.category == category)
+            if q:
+                like = f"%{q}%"
+                stmt = stmt.where((QuestionORM.title.ilike(like)) | (QuestionORM.content.ilike(like)))
+            total = await session.scalar(stmt)
+            return int(total or 0)
 
     async def update(self, question_id: int, data: Dict[str, Any]) -> Optional[Question]:
         async with database.get_session() as session:

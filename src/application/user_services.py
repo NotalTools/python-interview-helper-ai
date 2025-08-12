@@ -47,7 +47,9 @@ class QuestionAppService:
         return await self.questions.create(question)
 
     async def search(self, level: str | None, category: str | None, q: str | None, limit: int = 20, offset: int = 0):
-        return await self.questions.search(level=level, category=category, q=q, limit=limit, offset=offset)
+        items = await self.questions.search(level=level, category=category, q=q, limit=limit, offset=offset)
+        total = await self.questions.count(level=level, category=category, q=q)
+        return {"items": items, "total": total, "limit": limit, "offset": offset}
 
     async def update(self, question_id: int, data: dict) -> Question | None:
         return await self.questions.update(question_id, data)

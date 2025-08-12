@@ -45,6 +45,14 @@ class QuestionRepository(Protocol):
     async def delete(self, question_id: int) -> bool:
         ...
 
+    async def count(
+        self,
+        level: Optional[str] = None,
+        category: Optional[str] = None,
+        q: Optional[str] = None,
+    ) -> int:
+        ...
+
 
 class AnswerRepository(Protocol):
     async def create(self, user_id: int, question_id: int, answer_text: str, answer_type: str, voice_file_id: Optional[str] = None) -> Answer:

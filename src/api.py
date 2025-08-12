@@ -179,11 +179,12 @@ async def admin_delete_question(question_id: int, x_admin_token: str | None = He
     return {"status": "deleted" if ok else "not_found", "id": question_id}
 
 
-@app.get("/admin/questions", response_model=list[Question])
+@app.get("/admin/questions")
 async def admin_search_questions(level: str | None = None, category: str | None = None, q: str | None = None, limit: int = 20, offset: int = 0, x_admin_token: str | None = Header(default=None), qs=Depends(get_question_app_service)):
     if not settings.admin_token or x_admin_token != settings.admin_token:
         raise HTTPException(status_code=401, detail="unauthorized")
     res = await qs.search(level, category, q, limit, offset)
+    # Возвращаем items + total для UI пагинации
     return res
 
 
@@ -192,8 +193,8 @@ async def admin_search_questions(level: str | None = None, category: str | None 
 async def submit_text_answer(
     user_id: int,
     question_id: int,
-    answer_text: str = Body(..., min_length=3),
     background_tasks: BackgroundTasks,
+    answer_text: str = Body(..., min_length=3),
     app_service=Depends(get_interview_app_service),
 ):
     """Отправка текстового ответа"""
@@ -213,8 +214,8 @@ async def submit_text_answer(
 async def submit_voice_answer(
     user_id: int,
     question_id: int,
-    voice_file_id: str = Body(..., min_length=10),
     background_tasks: BackgroundTasks,
+    voice_file_id: str = Body(..., min_length=10),
     app_answers=Depends(get_answer_app_service),
 ):
     """Отправка голосового ответа"""
