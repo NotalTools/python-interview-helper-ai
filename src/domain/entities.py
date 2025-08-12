@@ -25,19 +25,20 @@ class UserEntity:
 
 
 def dto_to_user_entity(dto: DTOUser) -> UserEntity:
+    # Безопасное извлечение атрибутов для случаев, когда dto может быть неполным объектом
     return UserEntity(
-        id=dto.id,
-        telegram_id=dto.telegram_id,
-        username=dto.username,
-        first_name=dto.first_name,
-        last_name=dto.last_name,
-        level=dto.level,
-        category=dto.category,
-        current_question_id=dto.current_question_id,
-        score=dto.score,
-        questions_answered=dto.questions_answered,
-        created_at=dto.created_at,
-        updated_at=dto.updated_at,
+        id=getattr(dto, 'id', 0),
+        telegram_id=getattr(dto, 'telegram_id', 0),
+        username=getattr(dto, 'username', None),
+        first_name=getattr(dto, 'first_name', None),
+        last_name=getattr(dto, 'last_name', None),
+        level=getattr(dto, 'level', None),
+        category=getattr(dto, 'category', None),
+        current_question_id=getattr(dto, 'current_question_id', None),
+        score=getattr(dto, 'score', 0),
+        questions_answered=getattr(dto, 'questions_answered', 0),
+        created_at=getattr(dto, 'created_at', datetime.utcnow()),
+        updated_at=getattr(dto, 'updated_at', datetime.utcnow()),
     )
 
 
@@ -84,20 +85,21 @@ class QuestionEntity:
 
 
 def dto_to_question_entity(dto: DTOQuestion) -> QuestionEntity:
+    # Безопасное извлечение атрибутов для случаев, когда dto может быть неполным объектом
     return QuestionEntity(
-        id=dto.id,
-        title=dto.title,
-        content=dto.content,
-        level=dto.level,
-        category=dto.category,
-        question_type=dto.question_type,
-        points=dto.points,
-        correct_answer=dto.correct_answer,
-        explanation=dto.explanation,
-        hints=dto.hints,
-        tags=dto.tags,
-        created_at=dto.created_at,
-        updated_at=dto.updated_at,
+        id=getattr(dto, 'id', 0),
+        title=getattr(dto, 'title', ''),
+        content=getattr(dto, 'content', ''),
+        level=getattr(dto, 'level', ''),
+        category=getattr(dto, 'category', ''),
+        question_type=getattr(dto, 'question_type', ''),
+        points=getattr(dto, 'points', 0),
+        correct_answer=getattr(dto, 'correct_answer', ''),
+        explanation=getattr(dto, 'explanation', None),
+        hints=getattr(dto, 'hints', None),
+        tags=getattr(dto, 'tags', None),
+        created_at=getattr(dto, 'created_at', datetime.utcnow()),
+        updated_at=getattr(dto, 'updated_at', datetime.utcnow()),
     )
 
 
@@ -133,16 +135,17 @@ class AnswerEntity:
 
 
 def dto_to_answer_entity(dto: DTOAnswer) -> AnswerEntity:
+    # Безопасное извлечение атрибутов для случаев, когда dto может быть неполным объектом
     return AnswerEntity(
-        id=dto.id,
-        user_id=dto.user_id,
-        question_id=dto.question_id,
-        answer_text=dto.answer_text,
-        answer_type=dto.answer_type,
-        score=dto.score,
-        feedback=dto.feedback,
-        voice_file_id=dto.voice_file_id,
-        created_at=dto.created_at,
+        id=getattr(dto, 'id', 0),
+        user_id=getattr(dto, 'user_id', 0),
+        question_id=getattr(dto, 'question_id', 0),
+        answer_text=getattr(dto, 'answer_text', ''),
+        answer_type=getattr(dto, 'answer_type', 'text'),
+        score=getattr(dto, 'score', None),
+        feedback=getattr(dto, 'feedback', None),
+        voice_file_id=getattr(dto, 'voice_file_id', None),
+        created_at=getattr(dto, 'created_at', datetime.utcnow()),
     )
 
 

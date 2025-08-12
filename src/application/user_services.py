@@ -29,8 +29,14 @@ class UserAppService:
 
     async def stats(self, telegram_id: int) -> dict:
         user_dto = await self.users.get_by_telegram_id(telegram_id)
+        if not user_dto:
+            return {}
+        # Защита от случая, когда user_dto может быть int или неполным объектом
+        user_id = getattr(user_dto, 'id', None) or (user_dto.get('id') if isinstance(user_dto, dict) else None)
+        if not user_id:
+            return {}
         _ = dto_to_user_entity(user_dto) if user_dto else None
-        return await self.users.get_stats(user_dto.id) if user_dto else {}
+        return await self.users.get_stats(user_id)
 
 
 class QuestionAppService:
@@ -50,7 +56,10 @@ class QuestionAppService:
         _ = dto_to_user_entity(user_dto)
         q_dto = await self.questions.get_random(level, category, [])
         if q_dto:
-            await self.users.update_by_telegram_id(telegram_id, current_question_id=q_dto.id)
+            # Защита от случая, когда q_dto может быть int или неполным объектом
+            q_id = getattr(q_dto, 'id', None) or (q_dto.get('id') if isinstance(q_dto, dict) else q_dto if isinstance(q_dto, int) else None)
+            if q_id:
+                await self.users.update_by_telegram_id(telegram_id, current_question_id=q_id)
         _ = dto_to_question_entity(q_dto) if q_dto else None
         return q_dto
 
