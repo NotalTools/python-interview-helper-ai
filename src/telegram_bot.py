@@ -7,6 +7,7 @@ from telegram.ext import (
 )
 
 from .config import settings, AppConstants
+from .database import database
 from .container import (
     get_user_app_service,
     get_question_app_service,
@@ -21,7 +22,21 @@ class InterviewBot:
     """Telegram бот для подготовки к техническим собеседованиям"""
     
     def __init__(self):
-        self.application = Application.builder().token(settings.telegram_bot_token).build()
+        # Настроим lifecycle-хуки для корректной работы с async БД в одном event loop c PTB
+        async def _post_init(app):
+            await database.connect()
+            await database.create_tables()
+
+        async def _post_shutdown(app):
+            await database.disconnect()
+
+        self.application = (
+            Application.builder()
+            .token(settings.telegram_bot_token)
+            .post_init(_post_init)
+            .post_shutdown(_post_shutdown)
+            .build()
+        )
         self.setup_handlers()
     
     def setup_handlers(self):

@@ -30,11 +30,8 @@ logger = logging.getLogger(__name__)
 
 
 def run_bot_sync():
-    """Синхронный запуск бота: инициализируем БД и запускаем polling в главном потоке."""
+    """Синхронный запуск бота: PTB сам управляет loop, БД управляется через post_init/post_shutdown."""
     try:
-        asyncio.run(database.connect())
-        asyncio.run(database.create_tables())
-        logger.info("База данных подключена (bot mode)")
         logger.info("Запуск Telegram бота (polling)...")
         bot.run()  # блокирующий вызов PTB v20
     except KeyboardInterrupt:
@@ -42,12 +39,6 @@ def run_bot_sync():
     except Exception as e:
         logger.error(f"Ошибка при запуске бота: {e}")
         raise
-    finally:
-        try:
-            asyncio.run(database.disconnect())
-            logger.info("База данных отключена (bot mode)")
-        except Exception:
-            pass
 
 
 async def run_api():
