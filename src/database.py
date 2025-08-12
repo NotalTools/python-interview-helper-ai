@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -122,8 +122,8 @@ class Database:
         """Получение пользователя по Telegram ID"""
         async with self.get_session() as session:
             result = await session.execute(
-                "SELECT * FROM users WHERE telegram_id = :telegram_id",
-                {"telegram_id": telegram_id}
+                text("SELECT * FROM users WHERE telegram_id = :telegram_id"),
+                {"telegram_id": telegram_id},
             )
             return result.scalar_one_or_none()
     
@@ -146,10 +146,12 @@ class Database:
         """Обновление пользователя"""
         async with self.get_session() as session:
             result = await session.execute(
-                "UPDATE users SET updated_at = :updated_at, " + 
-                ", ".join([f"{k} = :{k}" for k in kwargs.keys()]) +
-                " WHERE telegram_id = :telegram_id",
-                {"telegram_id": telegram_id, "updated_at": datetime.now(), **kwargs}
+                text(
+                    "UPDATE users SET updated_at = :updated_at, "
+                    + ", ".join([f"{k} = :{k}" for k in kwargs.keys()])
+                    + " WHERE telegram_id = :telegram_id"
+                ),
+                {"telegram_id": telegram_id, "updated_at": datetime.now(), **kwargs},
             )
             await session.commit()
             
@@ -161,8 +163,8 @@ class Database:
         """Получение вопроса по ID"""
         async with self.get_session() as session:
             result = await session.execute(
-                "SELECT * FROM questions WHERE id = :question_id",
-                {"question_id": question_id}
+                text("SELECT * FROM questions WHERE id = :question_id"),
+                {"question_id": question_id},
             )
             return result.scalar_one_or_none()
     
@@ -170,19 +172,12 @@ class Database:
                                  exclude_ids: List[int] = None) -> Optional[Question]:
         """Получение случайного вопроса"""
         async with self.get_session() as session:
-            query = """
-                SELECT * FROM questions 
-                WHERE level = :level AND category = :category
-            """
+            query = (
+                "SELECT * FROM questions WHERE level = :level AND category = :category "
+                "ORDER BY RANDOM() LIMIT 1"
+            )
             params = {"level": level, "category": category}
-            
-            if exclude_ids:
-                query += " AND id NOT IN :exclude_ids"
-                params["exclude_ids"] = tuple(exclude_ids)
-            
-            query += " ORDER BY RANDOM() LIMIT 1"
-            
-            result = await session.execute(query, params)
+            result = await session.execute(text(query), params)
             return result.scalar_one_or_none()
     
     async def create_answer(self, user_id: int, question_id: int, 
@@ -207,15 +202,15 @@ class Database:
         """Обновление оценки ответа"""
         async with self.get_session() as session:
             result = await session.execute(
-                "UPDATE answers SET score = :score, feedback = :feedback WHERE id = :answer_id",
-                {"answer_id": answer_id, "score": score, "feedback": feedback}
+                text("UPDATE answers SET score = :score, feedback = :feedback WHERE id = :answer_id"),
+                {"answer_id": answer_id, "score": score, "feedback": feedback},
             )
             await session.commit()
             
             if result.rowcount > 0:
                 result = await session.execute(
-                    "SELECT * FROM answers WHERE id = :answer_id",
-                    {"answer_id": answer_id}
+                    text("SELECT * FROM answers WHERE id = :answer_id"),
+                    {"answer_id": answer_id},
                 )
                 return result.scalar_one_or_none()
             return None
@@ -223,7 +218,9 @@ class Database:
     async def get_user_stats(self, user_id: int) -> Dict[str, Any]:
         """Получение статистики пользователя"""
         async with self.get_session() as session:
-            result = await session.execute("""
+            result = await session.execute(
+                text(
+                    """
                 SELECT 
                     u.score as total_score,
                     u.questions_answered,
@@ -237,7 +234,10 @@ class Database:
                     END as average_score
                 FROM users u 
                 WHERE u.id = :user_id
-            """, {"user_id": user_id})
+            """
+                ),
+                {"user_id": user_id},
+            )
             
             row = result.fetchone()
             if row:

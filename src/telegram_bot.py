@@ -125,21 +125,23 @@ class InterviewBot:
         user_id = update.effective_user.id
         
         try:
-            stats = await UserService.get_user_stats(user_id)
+            users = get_user_app_service()
+            user = await users.get_or_create(user_id, None, None, None)
+            stats = await users.stats(user.telegram_id)
             
-            if stats.user_id == 0:
+            if not stats:
                 await update.message.reply_text("❌ Статистика не найдена. Используйте /start для начала работы.")
                 return
             
             stats_text = f"""
 📊 Ваша статистика:
 
-🎯 Уровень: {stats.level or 'Не выбран'}
-📂 Категория: {stats.category or 'Не выбрана'}
-🏆 Общий счет: {stats.total_score}
-❓ Отвечено вопросов: {stats.questions_answered}
-📈 Средний балл: {stats.average_score:.1f}
-🕐 Последняя активность: {stats.last_activity.strftime('%d.%m.%Y %H:%M') if stats.last_activity else 'Нет данных'}
+🎯 Уровень: {stats.get('level') or 'Не выбран'}
+📂 Категория: {stats.get('category') or 'Не выбрана'}
+🏆 Общий счет: {stats.get('total_score', 0)}
+❓ Отвечено вопросов: {stats.get('questions_answered', 0)}
+📈 Средний балл: {float(stats.get('average_score', 0.0)):.1f}
+🕐 Последняя активность: {stats.get('last_activity') or 'Нет данных'}
             """
             
             await update.message.reply_text(stats_text)
