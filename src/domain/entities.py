@@ -5,6 +5,7 @@ from typing import List, Optional
 
 from ..models import Question as DTOQuestion
 from ..models import Answer as DTOAnswer
+from ..models import User as DTOUser
 
 
 @dataclass
@@ -21,6 +22,40 @@ class UserEntity:
     questions_answered: int
     created_at: datetime
     updated_at: datetime
+
+
+def dto_to_user_entity(dto: DTOUser) -> UserEntity:
+    return UserEntity(
+        id=dto.id,
+        telegram_id=dto.telegram_id,
+        username=dto.username,
+        first_name=dto.first_name,
+        last_name=dto.last_name,
+        level=dto.level,
+        category=dto.category,
+        current_question_id=dto.current_question_id,
+        score=dto.score,
+        questions_answered=dto.questions_answered,
+        created_at=dto.created_at,
+        updated_at=dto.updated_at,
+    )
+
+
+def entity_to_dto_user(entity: UserEntity) -> DTOUser:
+    return DTOUser(
+        id=entity.id,
+        telegram_id=entity.telegram_id,
+        username=entity.username,
+        first_name=entity.first_name,
+        last_name=entity.last_name,
+        level=entity.level,
+        category=entity.category,
+        current_question_id=entity.current_question_id,
+        score=entity.score,
+        questions_answered=entity.questions_answered,
+        created_at=entity.created_at,
+        updated_at=entity.updated_at,
+    )
 
 
 @dataclass
