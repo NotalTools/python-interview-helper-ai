@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import database, User as UserORM, Question as QuestionORM, Answer as AnswerORM
 from ..models import User, Question, Answer
+from ..domain.entities import QuestionEntity, entity_to_dto_question
 from ..domain.ports import UserRepository, QuestionRepository, AnswerRepository
 
 
@@ -28,12 +29,17 @@ class SqlAlchemyQuestionRepository(QuestionRepository):
     async def get_random(self, level: str, category: str, exclude_ids: Optional[List[int]] = None) -> Optional[Question]:
         return await database.get_random_question(level, category, exclude_ids or [])
 
-    async def create(self, question: Question) -> Question:
+    async def create(self, question: Question | QuestionEntity) -> Question:
+        if isinstance(question, QuestionEntity):
+            question.validate()
+            dto = entity_to_dto_question(question)
+        else:
+            dto = question
         async with database.get_session() as session:
-            session.add(question)
+            session.add(dto)
             await session.commit()
-            await session.refresh(question)
-            return question
+            await session.refresh(dto)
+            return dto
 
 
 class SqlAlchemyAnswerRepository(AnswerRepository):

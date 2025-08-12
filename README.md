@@ -124,6 +124,12 @@ python main.py --mode bot
 python main.py --mode api
 ```
 
+### 6. Импорт примеров вопросов (seed)
+
+```bash
+uv run python scripts/seed_questions.py questions.example.yaml
+```
+
 ## 📱 Использование бота
 
 ### Основные команды
