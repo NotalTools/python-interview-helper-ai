@@ -61,10 +61,7 @@ class AppConstants:
         "databases": "Databases",
         "networking": "Networking",
         "security": "Security",
-        "devops": "DevOps & Infrastructure",
-        "frontend": "Frontend Development",
-        "backend": "Backend Development",
-        "mobile": "Mobile Development"
+        "backend": "Backend Development"
     }
     
     # Типы вопросов
