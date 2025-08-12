@@ -1,0 +1,35 @@
+version: "3.9"
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: interview
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  api:
+    build: .
+    depends_on:
+      - db
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-dummy}
+      AI_PROVIDER: ${AI_PROVIDER:-openai}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GIGACHAT_CLIENT_ID: ${GIGACHAT_CLIENT_ID:-}
+      GIGACHAT_CLIENT_SECRET: ${GIGACHAT_CLIENT_SECRET:-}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-secret}
+      DAILY_LIMIT_PER_USER: ${DAILY_LIMIT_PER_USER:-50}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # asyncpg url
+      DATABASE_URL: postgresql+asyncpg://app:app@db:5432/interview
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+volumes:
+  db_data:
+
