@@ -130,6 +130,22 @@ python main.py --mode api
 uv run python scripts/seed_questions.py questions.example.yaml
 ```
 
+### 7. Админ CRUD для вопросов
+
+- Создать вопрос:
+```bash
+curl -X POST http://localhost:8000/admin/questions \
+  -H 'Content-Type: application/json' \
+  -H 'X-Admin-Token: YOUR_TOKEN' \
+  -d '{"title":"...","content":"...","level":"middle","category":"backend","question_type":"text","points":10,"correct_answer":"..."}'
+```
+- Обновить: `PUT /admin/questions/{id}` (тело как выше)
+- Удалить: `DELETE /admin/questions/{id}`
+
+### 8. Лимиты
+
+- По умолчанию `daily_limit_per_user=50` (см. `.env`). При превышении — HTTP 429.
+
 ## 📱 Использование бота
 
 ### Основные команды

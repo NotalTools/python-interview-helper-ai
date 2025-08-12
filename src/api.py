@@ -23,6 +23,8 @@ from .container import (
     get_answer_app_service,
     get_tutor_app_service,
 )
+from .rate_limit import limiter
+from .domain.entities import QuestionEntity
 
 # Настройка логирования
 logging.basicConfig(level=getattr(logging, settings.log_level))
@@ -137,7 +139,16 @@ async def get_random_question(request: QuestionRequest):
 @app.post("/questions/", response_model=Question)
 async def create_question(question_data: QuestionCreate):
     """Создание нового вопроса"""
-    # Здесь можно добавить проверку прав доступа
+    # Простой админ-токен
+    from fastapi import Header
+    # В FastAPI нельзя добавлять параметры после объявления функции — делаем отдельный handler ниже
+    pass
+
+
+@app.post("/admin/questions", response_model=Question)
+async def admin_create_question(question_data: QuestionCreate, x_admin_token: str | None = Header(default=None)):
+    if not settings.admin_token or x_admin_token != settings.admin_token:
+        raise HTTPException(status_code=401, detail="unauthorized")
     question = Question(
         title=question_data.title,
         content=question_data.content,
@@ -155,6 +166,41 @@ async def create_question(question_data: QuestionCreate):
     return created
 
 
+@app.put("/admin/questions/{question_id}", response_model=Question)
+async def admin_update_question(question_id: int, question_data: QuestionCreate, x_admin_token: str | None = Header(default=None)):
+    if not settings.admin_token or x_admin_token != settings.admin_token:
+        raise HTTPException(status_code=401, detail="unauthorized")
+    # Простая реализация: создаём как новый объект c тем же id (для MVP)
+    entity = QuestionEntity(
+        id=question_id,
+        title=question_data.title,
+        content=question_data.content,
+        level=question_data.level,
+        category=question_data.category,
+        question_type=question_data.question_type,
+        points=question_data.points,
+        correct_answer=question_data.correct_answer,
+        explanation=question_data.explanation,
+        hints=question_data.hints,
+        tags=question_data.tags,
+    )
+    entity.validate()
+    qs = get_question_app_service()
+    updated = await qs.create(entity)  # в MVP перезапишем запись
+    return updated
+
+
+@app.delete("/admin/questions/{question_id}")
+async def admin_delete_question(question_id: int, x_admin_token: str | None = Header(default=None)):
+    if not settings.admin_token or x_admin_token != settings.admin_token:
+        raise HTTPException(status_code=401, detail="unauthorized")
+    # Для MVP: удаление напрямую через сессию ORM
+    async with database.get_session() as session:
+        await session.execute(f"DELETE FROM questions WHERE id = :id", {"id": question_id})
+        await session.commit()
+    return {"status": "deleted", "id": question_id}
+
+
 # Эндпоинты для ответов
 @app.post("/answers/text", response_model=AnswerEvaluation)
 async def submit_text_answer(
@@ -165,6 +211,8 @@ async def submit_text_answer(
 ):
     """Отправка текстового ответа"""
     try:
+        if not limiter.allow(user_id):
+            raise HTTPException(status_code=429, detail="Daily limit exceeded")
         # Через application layer (DDD) — использует порты/адаптеры
         app_service = get_interview_app_service()
         answer, evaluation = await app_service.answer_text(user_id, question_id, answer_text)
@@ -185,6 +233,8 @@ async def submit_voice_answer(
 ):
     """Отправка голосового ответа"""
     try:
+        if not limiter.allow(user_id):
+            raise HTTPException(status_code=429, detail="Daily limit exceeded")
         app_answers = get_answer_app_service()
         answer, evaluation = await app_answers.answer_voice(
             user_id, question_id, voice_file_id, settings.telegram_bot_token

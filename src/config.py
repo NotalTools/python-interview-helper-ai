@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     
     # Настройки логирования
     log_level: str = Field(default="INFO", description="Уровень логирования")
+
+    # Админ токен для CRUD операций над вопросами (простой вариант)
+    admin_token: str = Field(default="", description="Админ-токен для управления вопросами")
+
+    # Лимиты
+    daily_limit_per_user: int = Field(default=50, description="Дневной лимит оценок ответов на пользователя")
     
     class Config:
         env_file = ".env"
