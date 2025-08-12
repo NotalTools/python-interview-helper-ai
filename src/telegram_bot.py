@@ -7,7 +7,11 @@ from telegram.ext import (
 )
 
 from .config import settings, AppConstants
-from .services import UserService, QuestionService, AnswerService, VoiceService
+from .container import (
+    get_user_app_service,
+    get_question_app_service,
+    get_answer_app_service,
+)
 from .models import User, Question
 
 logger = logging.getLogger(__name__)
@@ -44,10 +48,9 @@ class InterviewBot:
         """Обработка команды /start"""
         user = update.effective_user
         
-        # Создаем или получаем пользователя
-        await UserService.get_or_create_user(
-            user.id, user.username, user.first_name, user.last_name
-        )
+        # Создаем или получаем пользователя через app-layer
+        users = get_user_app_service()
+        await users.get_or_create(user.id, user.username, user.first_name, user.last_name)
         
         welcome_text = f"""
 👋 Привет, {user.first_name or user.username or 'пользователь'}!
@@ -135,7 +138,8 @@ class InterviewBot:
         user_id = update.effective_user.id
         
         try:
-            user = await UserService.get_or_create_user(user_id)
+            users = get_user_app_service()
+            user = await users.get_or_create(user_id, None, None, None)
             
             settings_text = f"""
 ⚙️ Настройки профиля:
@@ -197,7 +201,8 @@ class InterviewBot:
         user_id = query.from_user.id
         
         # Обновляем уровень пользователя
-        await UserService.update_user_level(user_id, level)
+        users = get_user_app_service()
+        await users.update_level(user_id, level)
         
         # Показываем выбор категории
         level_name = AppConstants.LEVELS.get(level, level)
@@ -215,7 +220,8 @@ class InterviewBot:
         user_id = query.from_user.id
         
         # Обновляем категорию пользователя
-        await UserService.update_user_category(user_id, category)
+        users = get_user_app_service()
+        await users.update_category(user_id, category)
         
         # Показываем готовность к вопросам
         category_name = AppConstants.CATEGORIES.get(category, category)
@@ -251,7 +257,8 @@ class InterviewBot:
     async def get_question_for_user(self, query, user_id: int):
         """Получение вопроса для пользователя"""
         try:
-            user = await UserService.get_or_create_user(user_id)
+            users = get_user_app_service()
+            user = await users.get_or_create(user_id, None, None, None)
             
             if not user.level or not user.category:
                 await query.edit_message_text(
@@ -260,9 +267,8 @@ class InterviewBot:
                 return
             
             # Получаем вопрос
-            question = await QuestionService.get_question_for_user(
-                user_id, user.level, user.category
-            )
+            qs = get_question_app_service()
+            question = await qs.random_for_user(user_id, user.level, user.category)
             
             if not question:
                 await query.edit_message_text(
@@ -296,12 +302,12 @@ class InterviewBot:
     async def skip_question(self, query, user_id: int):
         """Пропуск вопроса"""
         try:
-            user = await UserService.get_or_create_user(user_id)
+            users = get_user_app_service()
+            user = await users.get_or_create(user_id, None, None, None)
             
             # Получаем новый вопрос
-            question = await QuestionService.get_question_for_user(
-                user_id, user.level, user.category
-            )
+            qs = get_question_app_service()
+            question = await qs.random_for_user(user_id, user.level, user.category)
             
             if not question:
                 await query.edit_message_text(
@@ -322,7 +328,8 @@ class InterviewBot:
         text = update.message.text
         
         try:
-            user = await UserService.get_or_create_user(user_id)
+            users = get_user_app_service()
+            user = await users.get_or_create(user_id, None, None, None)
             
             if not user.current_question_id:
                 await update.message.reply_text(
@@ -331,16 +338,18 @@ class InterviewBot:
                 return
             
             # Обрабатываем текстовый ответ
-            answer_service = AnswerService()
-            answer, evaluation = await answer_service.process_text_answer(
-                user_id, user.current_question_id, text
-            )
+            answers = get_answer_app_service()
+            # Для отображения баллов получим вопрос
+            qs = get_question_app_service()
+            question = await qs.get(user.current_question_id)
+            answer, evaluation = await answers.answer_text(user_id, user.current_question_id, text)
             
             # Формируем ответ с оценкой
+            points = question.points if question else 0
             response_text = f"""
 📊 Результат оценки:
 
-🏆 Получено баллов: {evaluation.score}/{answer.question.points}
+🏆 Получено баллов: {evaluation.score}/{points}
 ✅ Правильность: {'Да' if evaluation.is_correct else 'Нет'}
 
 💬 Обратная связь:
@@ -364,7 +373,8 @@ class InterviewBot:
         voice = update.message.voice
         
         try:
-            user = await UserService.get_or_create_user(user_id)
+            users = get_user_app_service()
+            user = await users.get_or_create(user_id, None, None, None)
             
             if not user.current_question_id:
                 await update.message.reply_text(
@@ -376,36 +386,21 @@ class InterviewBot:
             processing_msg = await update.message.reply_text("🎤 Обрабатываю голосовое сообщение...")
             
             # Скачиваем и обрабатываем голосовое сообщение
-            voice_service = VoiceService()
-            ogg_path = f"temp/{voice.file_id}.ogg"
-            wav_path = f"temp/{voice.file_id}.wav"
-            
-            success = await voice_service.download_voice_file(
-                voice.file_id, settings.telegram_bot_token, ogg_path
-            )
-            
-            if not success:
-                await processing_msg.edit_text("❌ Не удалось скачать голосовое сообщение")
-                return
-            
-            success = await voice_service.convert_ogg_to_wav(ogg_path, wav_path)
-            if not success:
-                await processing_msg.edit_text("❌ Не удалось обработать аудио файл")
-                return
-            
-            # Обрабатываем ответ
-            answer_service = AnswerService()
-            answer, evaluation = await answer_service.process_voice_answer(
-                user_id, user.current_question_id, wav_path, voice.file_id
+            answers = get_answer_app_service()
+            qs = get_question_app_service()
+            question = await qs.get(user.current_question_id)
+            answer, evaluation = await answers.answer_voice(
+                user_id, user.current_question_id, voice.file_id, settings.telegram_bot_token
             )
             
             # Формируем ответ с оценкой
+            points = question.points if question else 0
             response_text = f"""
 📊 Результат оценки:
 
 🎤 Распознанный текст: "{answer.answer_text}"
 
-🏆 Получено баллов: {evaluation.score}/{answer.question.points}
+🏆 Получено баллов: {evaluation.score}/{points}
 ✅ Правильность: {'Да' if evaluation.is_correct else 'Нет'}
 
 💬 Обратная связь:
@@ -419,14 +414,7 @@ class InterviewBot:
             
             await processing_msg.edit_text(response_text, reply_markup=reply_markup)
             
-            # Очищаем временные файлы
-            import os
-            for file_path in [ogg_path, wav_path]:
-                try:
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
-                except:
-                    pass
+            # Файлы очищаются на уровне AnswerAppService через VoiceStorage
             
         except Exception as e:
             logger.error(f"Ошибка при обработке голосового ответа: {e}")

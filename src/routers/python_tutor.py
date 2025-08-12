@@ -5,7 +5,7 @@ import uuid
 from ..agents.base import AgentContext
 from ..orchestrator import PythonMentorOrchestrator
 from ..schemas import SessionCreate, SessionState, UserCode
-from ..code_executor import execute_python
+from ..container import get_tutor_app_service
 
 router = APIRouter(prefix="/python", tags=["python-mentor"])
 
@@ -35,5 +35,6 @@ async def create_session(payload: SessionCreate):
 async def run_code(session_id: str, body: UserCode):
     if session_id not in SESSIONS:
         raise HTTPException(404, "session not found")
-    result = await execute_python(body.code, body.stdin or "")
+    tutor = get_tutor_app_service()
+    result = await tutor.run_code(body.code, body.stdin or "")
     return result
