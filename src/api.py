@@ -17,6 +17,12 @@ from .services import (
 )
 from .container import get_interview_app_service
 from .routers.python_tutor import router as python_tutor_router
+from .container import (
+    get_user_app_service,
+    get_question_app_service,
+    get_answer_app_service,
+    get_tutor_app_service,
+)
 
 # Настройка логирования
 logging.basicConfig(level=getattr(logging, settings.log_level))
@@ -63,24 +69,20 @@ app.include_router(python_tutor_router)
 @app.get("/users/{telegram_id}", response_model=User)
 async def get_user(telegram_id: int):
     """Получение пользователя по Telegram ID"""
-    user = await database.get_user_by_telegram_id(telegram_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    users = get_user_app_service()
+    user = await users.get_or_create(telegram_id, None, None, None)
     return user
 
 
 @app.post("/users/", response_model=User)
 async def create_user(user_data: UserCreate):
     """Создание нового пользователя"""
-    existing_user = await database.get_user_by_telegram_id(user_data.telegram_id)
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Пользователь уже существует")
-    
-    user = await UserService.get_or_create_user(
+    users = get_user_app_service()
+    user = await users.get_or_create(
         user_data.telegram_id,
         user_data.username,
         user_data.first_name,
-        user_data.last_name
+        user_data.last_name,
     )
     return user
 
@@ -88,23 +90,22 @@ async def create_user(user_data: UserCreate):
 @app.put("/users/{telegram_id}", response_model=User)
 async def update_user(telegram_id: int, user_data: UserUpdate):
     """Обновление пользователя"""
-    user = await database.get_user_by_telegram_id(telegram_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="Пользователь не найден")
-    
+    users = get_user_app_service()
     update_data = user_data.dict(exclude_unset=True)
-    updated_user = await database.update_user(telegram_id, **update_data)
-    if not updated_user:
-        raise HTTPException(status_code=500, detail="Ошибка при обновлении пользователя")
-    
+    updated_user = await users.get_or_create(telegram_id, None, None, None)
+    if "level" in update_data:
+        updated_user = await users.update_level(telegram_id, update_data["level"]) or updated_user
+    if "category" in update_data:
+        updated_user = await users.update_category(telegram_id, update_data["category"]) or updated_user
     return updated_user
 
 
 @app.get("/users/{telegram_id}/stats", response_model=UserStats)
 async def get_user_stats(telegram_id: int):
     """Получение статистики пользователя"""
-    stats = await UserService.get_user_stats(telegram_id)
-    if stats.user_id == 0:
+    users = get_user_app_service()
+    stats = await users.stats(telegram_id)
+    if not stats:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
     return stats
 
@@ -122,11 +123,9 @@ async def get_question(question_id: int):
 @app.post("/questions/random", response_model=Question)
 async def get_random_question(request: QuestionRequest):
     """Получение случайного вопроса"""
-    question = await database.get_random_question(
-        request.level, 
-        request.category, 
-        request.exclude_ids
-    )
+    qs = get_question_app_service()
+    # Используем фиктивного telegram_id=0? Лучше передавать из клиента, но для MVP оставим
+    question = await qs.random_for_user(0, request.level, request.category)
     if not question:
         raise HTTPException(
             status_code=404, 
@@ -151,13 +150,9 @@ async def create_question(question_data: QuestionCreate):
         hints=question_data.hints,
         tags=question_data.tags
     )
-    
-    async with database.get_session() as session:
-        session.add(question)
-        await session.commit()
-        await session.refresh(question)
-    
-    return question
+    qs = get_question_app_service()
+    created = await qs.create(question)
+    return created
 
 
 # Эндпоинты для ответов
@@ -190,31 +185,10 @@ async def submit_voice_answer(
 ):
     """Отправка голосового ответа"""
     try:
-        # Скачиваем голосовой файл
-        voice_service = VoiceService()
-        ogg_path = f"temp/{voice_file_id}.ogg"
-        wav_path = f"temp/{voice_file_id}.wav"
-        
-        success = await voice_service.download_voice_file(
-            voice_file_id, settings.telegram_bot_token, ogg_path
+        app_answers = get_answer_app_service()
+        answer, evaluation = await app_answers.answer_voice(
+            user_id, question_id, voice_file_id, settings.telegram_bot_token
         )
-        if not success:
-            raise HTTPException(status_code=400, detail="Не удалось скачать голосовое сообщение")
-        
-        # Конвертируем в WAV
-        success = await voice_service.convert_ogg_to_wav(ogg_path, wav_path)
-        if not success:
-            raise HTTPException(status_code=400, detail="Не удалось обработать аудио файл")
-        
-        # Обрабатываем ответ
-        answer_service = AnswerService()
-        answer, evaluation = await answer_service.process_voice_answer(
-            user_id, question_id, wav_path, voice_file_id
-        )
-        
-        # Очищаем временные файлы
-        background_tasks.add_task(cleanup_temp_files, ogg_path, wav_path)
-        
         return evaluation
         
     except HTTPException:

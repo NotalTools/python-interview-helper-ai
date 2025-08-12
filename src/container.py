@@ -8,7 +8,10 @@ from .infrastructure.repositories import (
 )
 from .infrastructure.ai import DefaultAIProvider
 from .infrastructure.executor import PistonExecutor
+from .infrastructure.voice import TelegramVoiceStorage
+from .infrastructure.orchestrator import DefaultOrchestrator
 from .application.services import InterviewAppService
+from .application.user_services import UserAppService, QuestionAppService, AnswerAppService, TutorAppService
 
 
 @lru_cache(maxsize=1)
@@ -44,3 +47,30 @@ def get_interview_app_service() -> InterviewAppService:
         answers=get_answer_repo(),
         ai=get_ai_provider(),
     )
+
+
+@lru_cache(maxsize=1)
+def get_user_app_service() -> UserAppService:
+    return UserAppService(get_user_repo())
+
+
+@lru_cache(maxsize=1)
+def get_question_app_service() -> QuestionAppService:
+    return QuestionAppService(get_user_repo(), get_question_repo())
+
+
+@lru_cache(maxsize=1)
+def get_answer_app_service() -> AnswerAppService:
+    return AnswerAppService(
+        users=get_user_repo(),
+        questions=get_question_repo(),
+        answers=get_answer_repo(),
+        ai=get_ai_provider(),
+        voice=TelegramVoiceStorage(),
+        orch=DefaultOrchestrator(),
+    )
+
+
+@lru_cache(maxsize=1)
+def get_tutor_app_service() -> TutorAppService:
+    return TutorAppService(get_code_executor())

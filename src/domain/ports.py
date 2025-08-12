@@ -49,3 +49,19 @@ class AIProvider(Protocol):
 class CodeExecutor(Protocol):
     async def execute(self, code: str, stdin: str = "") -> Dict[str, Any]:
         ...
+
+
+class VoiceStorage(Protocol):
+    async def download_voice(self, file_id: str, bot_token: str, save_path: str) -> bool:
+        ...
+
+    async def convert_ogg_to_wav(self, ogg_path: str, wav_path: str) -> bool:
+        ...
+
+    async def cleanup(self, *file_paths: str) -> None:
+        ...
+
+
+class Orchestrator(Protocol):
+    async def prepare_notes(self, category: str, user_id: int, level: str, topic: str) -> str:
+        ...
