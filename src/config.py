@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     """Настройки приложения с использованием Pydantic Settings"""
     
     # Telegram Bot Token
-    telegram_bot_token: str = Field(..., description="Telegram Bot Token от @BotFather")
+    telegram_bot_token: str = Field(default="", description="Telegram Bot Token от @BotFather")
     
     # AI Provider Settings
     ai_provider: str = Field(default="openai", description="AI провайдер: openai или gigachat")
